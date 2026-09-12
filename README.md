@@ -100,3 +100,7 @@ made), `loose.jsonl.gz` (the normaliser's parity set), `book/` (the 462 paradigm
 `MANIFEST.json` (the upstream commit).
 
 A Python port with the same API and the same tests: [`mazini`](https://github.com/forzagreen/mazini).
+
+## Licence
+
+© 2026 Wael Tellat. Released under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); see [LICENSE](LICENSE).

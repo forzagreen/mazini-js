@@ -4,6 +4,7 @@
   "description": "Arabic verb conjugator — every form of any verb from its root and pattern; a pure-TypeScript port of Wiktionary's Module:ar-verb, verified against 15,549 printed forms",
   "keywords": ["arabic", "conjugation", "conjugator", "verb", "morphology", "nlp", "arabic-nlp", "sarf", "تصريف"],
   "author": "Wael Tellat <wael.tellat@gmail.com>",
+  "license": "CC-BY-4.0",
   "homepage": "https://github.com/forzagreen/mazini-js",
   "repository": { "type": "git", "url": "git+https://github.com/forzagreen/mazini-js.git" },
   "bugs": { "url": "https://github.com/forzagreen/mazini-js/issues" },
