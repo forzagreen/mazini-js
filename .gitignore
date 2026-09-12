@@ -1,0 +1,8 @@
+node_modules/
+dist/
+site/
+*.tsbuildinfo
+.DS_Store
+coverage/
+*.log
+__pycache__/

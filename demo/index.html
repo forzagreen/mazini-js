@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>المازني — مُصرِّف الأفعال العربية</title>
+    <meta name="description" content="مُصرِّف الأفعال العربية في المتصفح: كل صيغ الفعل من جذره ووزنه، معلومًا ومجهولًا، مع اسمي الفاعل والمفعول والمصدر. نسخة جافاسكربت من وحدة التصريف في ويكاموس." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Scheherazade+New:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet" />
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem("mazini-theme") || "auto";
+          var dark = p === "dark" || (p === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        } catch (e) { document.documentElement.dataset.theme = "light"; }
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <h1>المازني <span class="latin">mazini</span></h1>
+        <p class="sub">مُصرِّف الأفعال العربية: كلُّ صيغ الفعل من جذره ووزنه، يعمل بالكامل في متصفحك. نسخةٌ من وحدة التصريف في ويكاموس العربي، مطابقةٌ لها حرفًا بحرف ومُختبَرةٌ على 15٬549 صيغةً من <i>معجم تصريف الأفعال العربية</i>.</p>
+        <nav class="links">
+          <a href="https://github.com/forzagreen/mazini-js">GitHub</a>
+          <a href="https://www.npmjs.com/package/mazini">npm</a>
+          <a href="https://github.com/forzagreen/mazini">Python</a>
+          <a href="https://forzagreen.github.io/ar-verbs/">بيانات الكتاب</a>
+          <button id="theme" type="button" title="السمة">◐</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="controls">
+        <label>الجذر <input id="root" type="text" value="كتب" autocomplete="off" spellcheck="false" /></label>
+        <label>الوزن <select id="wazn"></select></label>
+        <label class="check"><input id="passive" type="checkbox" /> مبني للمجهول كاملًا</label>
+        <label class="check"><input id="reduced" type="checkbox" /> مدغم</label>
+        <label>من الكتاب <select id="book-pick"><option value="">— اختر فعلًا من نماذج الكتاب —</option></select></label>
+      </section>
+
+      <section id="out" class="out"></section>
+
+      <section class="selftest">
+        <h2>اختبار على الكتاب</h2>
+        <p>يُصرِّف المتصفحُ نماذجَ الكتاب الـ462 كلَّها ويقارن كلَّ خانةٍ مطبوعةٍ بما يولِّده، بالمقارنة نفسها التي تُجرى في التكامل المستمر. <button id="run-test" type="button">شغِّل الاختبار (15٬549 خانة)</button></p>
+        <p id="test-status" class="muted"></p>
+        <pre id="test-fails" hidden></pre>
+      </section>
+    </main>
+
+    <footer class="wrap foot">
+      <p>المصدر: <a href="https://ar.wiktionary.org/wiki/وحدة:ar-verb">وحدة:ar-verb</a> في ويكاموس العربي، من <a href="https://en.wiktionary.org/wiki/Module:ar-verb">Module:ar-verb</a> في الإنجليزي. الصيغُ المطبوعة من أنطوان الدحداح، <i>معجم تصريف الأفعال العربية</i>، مكتبة لبنان، ط6، 2007، عبر مجموعة <a href="https://github.com/forzagreen/ar-verbs">ar-verbs</a>.</p>
+    </footer>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

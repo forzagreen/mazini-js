@@ -1,0 +1,43 @@
+{
+  "name": "mazini",
+  "version": "0.1.0",
+  "description": "Arabic verb conjugator — every form of any verb from its root and pattern; a pure-TypeScript port of Wiktionary's Module:ar-verb, verified against 15,549 printed forms",
+  "keywords": ["arabic", "conjugation", "conjugator", "verb", "morphology", "nlp", "arabic-nlp", "sarf", "تصريف"],
+  "author": "Wael Tellat <wael.tellat@gmail.com>",
+  "homepage": "https://github.com/forzagreen/mazini-js",
+  "repository": { "type": "git", "url": "git+https://github.com/forzagreen/mazini-js.git" },
+  "bugs": { "url": "https://github.com/forzagreen/mazini-js/issues" },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=18" },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "build:demo": "npm run build && node scripts/build-demo.mjs",
+    "serve:demo": "node scripts/serve-demo.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write \"{src,test,scripts,demo}/**/*.{ts,mjs}\"",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/node": "^20.14.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.13.0",
+    "prettier": "^3.3.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.10.0",
+    "vitest": "^2.1.0"
+  }
+}

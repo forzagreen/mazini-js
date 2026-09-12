@@ -1,0 +1,102 @@
+# mazini
+
+[![npm](https://img.shields.io/npm/v/mazini)](https://www.npmjs.com/package/mazini)
+[![CI](https://github.com/forzagreen/mazini-js/actions/workflows/ci.yml/badge.svg)](https://github.com/forzagreen/mazini-js/actions/workflows/ci.yml)
+
+**Arabic verb conjugator for JavaScript / TypeScript.** Give it a root and a pattern (وزن) and it
+returns every form of the verb: the past, the three non-past moods, the imperative, active and passive,
+in all thirteen persons, plus the participles and the مصدر — 119 slots, fully vocalised, with the
+attested alternative spellings where Arabic has them.
+
+It is a pure-TypeScript port of Arabic Wiktionary's conjugation engine,
+[`وحدة:ar-verb`](https://ar.wiktionary.org/wiki/وحدة:ar-verb) (itself descended from
+[`Module:ar-verb`](https://en.wiktionary.org/wiki/Module:ar-verb) on English Wiktionary), and it is
+verified two ways:
+
+- **Against the book.** Every one of the **15,549 printed forms** of the 462 paradigms in
+  أنطوان الدحداح, *معجم تصريف الأفعال العربية* — the reference work on the subject, transcribed and
+  published as the [`ar-verbs`](https://github.com/forzagreen/ar-verbs) dataset — is among the forms
+  the engine generates.
+- **Against the original.** For **7,851 inputs** (every root × pattern combination of a 154-root grid,
+  plain, passive and assimilated, plus every book verb) the output is **byte-identical** to the Lua
+  module's: 741,188 forms, footnotes and metadata fields, and the same 201 rejected inputs.
+
+- **Pure JS, zero dependencies, no data files.** ESM + CommonJS, typed. Node 18–24 and every browser.
+- **~90 KB**, nothing downloaded at runtime.
+
+> Named after **أبو عثمان المازني** (Abū ʿUthmān al-Māzinī, d. 863), whose كتاب التصريف is the first
+> standalone treatise on Arabic morphology.
+
+## Live demo
+
+**[forzagreen.github.io/mazini-js](https://forzagreen.github.io/mazini-js/)** — conjugate any verb in
+the browser, and run the 15,549 book assertions yourself.
+
+## Install
+
+```bash
+npm install mazini
+```
+
+## Usage
+
+```ts
+import { conjugate } from "mazini";
+
+const v = conjugate("كتب", "فعَل يفعُل");
+v.slots.past_3ms[0].form; // "كَتَبَ"
+v.slots.ind_3ms[0].form; // "يَكْتُبُ"
+v.slots.imp_2fs[0].form; // "اُكْتُبِي"
+v.slots.ap[0].form; // "كَاتِب"
+v.verbType; // "فعل ثلاثي مُجرَّد صحيح سالم"
+
+// A pattern can be given by its Arabic name or its form code; both take the same options.
+conjugate("قول", "أفعل").slots.past_3ms[0].form; // "أَقَالَ"
+conjugate("علم", "V").slots.vn[0].form; // "تَعَلُّم"
+conjugate("كتب", "I", { vowels: { past: "a", nonpast: "u" } }); // same as "فعَل يفعُل"
+
+// Two switches, the same ones {{تصريف}} takes on the wiki:
+conjugate("أخذ", "افتعل", { reduced: true }).slots.past_3ms[0].form; // "اِتَّخَذَ" (assimilated affix)
+conjugate("علم", "فعِل يفعَل", { passive: true }); // a full personal passive for a verb the engine would default to impersonal
+```
+
+The result's `slots` is a map from slot name (`past_3ms`, `ind_pass_2fp`, `juss_1p`, `imp_2fp`, `ap`,
+`pp`, `vn`, …) to the list of forms for that slot, each `{ form, footnotes }`; a slot the verb lacks is
+absent. Alongside it: `lemma`, `verbForm`, `wazn`, `radicals`, `weakness`, `passive` (the passive type),
+`irregular`, `morphPatterns`, `hasActive` / `hasPassive`, `uncertainSlots` (slots shown as `"?"`, i.e. a
+form-I مصدر or participle the root alone cannot predict), `verbType` and `classification`.
+
+Roots may be written `كتب`, `ك ت ب` or `ك_ت_ب`; hamza seats fold to `ء` and `ى` to `ي`. Bad input throws a
+`MaziniError` whose `code` is stable (`bad_root`, `unknown_wazn`, `reduced_not_applicable`, …).
+
+```ts
+import { WAZNS, SLOTS, PERSON_NUMBERS, classifyTriliteralVerb, loose } from "mazini";
+WAZNS; // the 22 patterns: name, form code, vowels, مجرد/مزيد class
+classifyTriliteralVerb("ق", "و", "ل"); // "معتل أجوف واوي"
+loose("فَعَلَا") === loose("فَعَلا"); // the comparison the book tests use
+```
+
+## What it does not do (yet)
+
+It conjugates from a root and a pattern, which is what every caller on Arabic Wiktionary does. The Lua
+module can also take a written, vocalised verb and infer its root (`infer_radicals`), accept per-slot
+overrides, and render the wikitext table; none of that is ported. The subjunctive, jussive, participles
+and مصدر are generated but are outside the book's tables, so they are verified only against the Lua
+module, not against print.
+
+## Development
+
+```bash
+npm install
+npm test            # hamza, book, golden, loose, api
+npm run build:demo && npm run serve:demo
+python3 tools/gen_golden.py   # regenerate test/fixtures/ from ../ar-wiktionary-modules (needs luajit)
+```
+
+`test/fixtures/` is generated upstream by
+[`ar-wiktionary-modules`](https://github.com/forzagreen/ar-wiktionary-modules)' `tools/port_fixtures.py`:
+`golden.jsonl.gz` (the module's output for 7,851 inputs), `hamza.jsonl.gz` (every hamza-seating call it
+made), `loose.jsonl.gz` (the normaliser's parity set), `book/` (the 462 paradigms as CSV) and
+`MANIFEST.json` (the upstream commit).
+
+A Python port with the same API and the same tests: [`mazini`](https://github.com/forzagreen/mazini).
