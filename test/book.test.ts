@@ -1,4 +1,4 @@
-// The book: every printed cell of the 462 paradigms of El-Dahdah's معجم تصريف الأفعال العربية, checked exactly
+// The book: every printed cell of the 495 paradigms of El-Dahdah's معجم تصريف الأفعال العربية, checked exactly
 // the way upstream's tests/run.lua checks the Lua module -- membership after loose() normalisation.
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
@@ -55,11 +55,11 @@ function splitCsv(line: string): string[] {
   return out;
 }
 
-describe("the book: 462 paradigms from El-Dahdah", () => {
+describe("the book: 495 paradigms from El-Dahdah", () => {
   it("every printed cell is among the forms the engine generates", () => {
     const book = join(FIXTURES, "book");
     const index = readCsv(join(book, "index.csv"));
-    expect(index.length).toBe(462);
+    expect(index.length).toBe(495);
     let passed = 0;
     const failed: string[] = [];
     const perColumn: Record<string, number> = {};
@@ -88,10 +88,10 @@ describe("the book: 462 paradigms from El-Dahdah", () => {
     console.log(`book: ${passed} passed, ${failed.length} failed; per column ${JSON.stringify(perColumn)}`);
     if (failed.length) console.log(failed.slice(0, 20).join("\n"));
     expect(failed).toEqual([]);
-    expect(passed).toBe(15549);
+    expect(passed).toBe(16593);
   });
   it("lists the fixture files", () => {
     const n = readdirSync(join(FIXTURES, "book")).filter((f) => f.endsWith(".csv")).length;
-    expect(n).toBe(463);
+    expect(n).toBe(496);
   });
 });

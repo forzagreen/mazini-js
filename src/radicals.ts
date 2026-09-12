@@ -50,7 +50,7 @@ export function formIWAssimilated(
 }
 
 /** Geminate form-I roots whose degemination vowel follows the مضارع by إتباع (هَمُمْتَ). */
-const GEMINATE_ITBAA_ROOTS = new Set(["همم", "عشش", "فكك"]);
+const GEMINATE_ITBAA_ROOTS = new Set(["همم", "عشش", "فكك", "شرر", "لبب"]);
 
 export function geminateDegeminationVowel(
   rad1: string,
@@ -82,6 +82,7 @@ const SOUND_ROOTS = new Set([
   "IV:نيء",
   "VII:سيء",
   "VIII:عول",
+  "VIII:زوج",
   "X:جوب",
   "III:علل",
   "III:فرر",
@@ -89,8 +90,11 @@ const SOUND_ROOTS = new Set([
   "VI:غضض",
 ]);
 
-/** Hollow roots whose form-I فَعُلَ keeps the middle radical sound (هَيُؤَ). */
-const SOUND_FORM_I_UU_ROOTS = new Set(["هي" + HAMZA]);
+/** Hollow roots that keep the middle radical sound in one form-I vowel pattern, keyed root:vowels (هَيُؤَ, أَوِبَ). */
+const SOUND_FORM_I_ROOTS = new Set(["هي" + HAMZA + ":uu", HAMZA + "وب:ia"]);
+
+/** Wāw-initial roots whose form VIII keeps the wāw instead of assimilating it (اِيتَشَى / يَوْتَشِي). */
+const FORM_VIII_UNASSIMILATED_W_ROOTS = new Set(["وشي"]);
 
 export function vformSupportsFinalWeak(vform: VerbForm): boolean {
   return vform !== "XI" && vform !== "XV" && vform !== "IVq";
@@ -166,9 +170,7 @@ export function weaknessFromRadicals(
         form === "I" &&
         pastVowel !== undefined &&
         nonpastVowel !== undefined &&
-        req(pastVowel, U) &&
-        req(nonpastVowel, U) &&
-        SOUND_FORM_I_UU_ROOTS.has(rad1 + rad2 + rad3)
+        SOUND_FORM_I_ROOTS.has(rad1 + rad2 + rad3 + ":" + vowelLetter(pastVowel) + vowelLetter(nonpastVowel))
       ) {
         return "sound";
       }
@@ -182,7 +184,8 @@ export function weaknessFromRadicals(
 }
 
 /** form_viii_join_ta: the infixed tāʾ joined to the first radical of a form VIII verb. */
-export function formViiiJoinTa(rad: string, reduced: boolean): string {
+export function formViiiJoinTa(rad: string, reduced: boolean, root?: string): string {
+  if (rad === W && root !== undefined && FORM_VIII_UNASSIMILATED_W_ROOTS.has(root)) return W + SK + "ت";
   if (rad === W || rad === Y || rad === "ت") return "تّ";
   if (rad === HAMZA && reduced) return "تّ";
   if (rad === "د") return "دّ";

@@ -66,7 +66,7 @@ export function detectIndicatorSpec(base: Base): void {
       );
     }
     const weakness = weaknessFromRadicals(vform, ir1, ir2, ir3, ir4, vs.past, vs.nonpast);
-    if (vform === "VIII") vs.formViiiAssim = formViiiJoinTa(ir1, base.reduced);
+    if (vform === "VIII") vs.formViiiAssim = formViiiJoinTa(ir1, base.reduced, ir1 + ir2 + ir3);
 
     if (vform === "I" && !isPassiveOnly(base.passive) && (vs.past === "-" || vs.nonpast === "-")) {
       throw new MaziniError(
