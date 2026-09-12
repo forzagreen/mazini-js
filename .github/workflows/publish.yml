@@ -20,5 +20,19 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
       - run: npm ci
-      - run: npm install -g npm@latest # trusted publishing needs npm >= 11.5.1
-      - run: npm publish
+      - run: npm install -g npm@latest # trusted publishing and `npm stage` need a recent npm
+      - name: Skip a version that is already on npm
+        id: check
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if npm view "mazini@$v" version >/dev/null 2>&1; then
+            echo "mazini@$v is already published — nothing to do"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Staged publishing: the tarball is uploaded but not released until a
+      # maintainer approves it with 2FA (`npm stage list`, then
+      # `npm stage approve <stage-id>`), so a compromised workflow cannot ship
+      # a release on its own. The npm trusted publisher is configured as
+      # "staged publishing only".
+      - if: steps.check.outputs.skip != 'true'
+        run: npm stage publish
