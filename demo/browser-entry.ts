@@ -4,8 +4,7 @@
 // checkbox lifts the restriction so any root can be conjugated on any pattern.
 import { conjugate, loose, MaziniError, WAZNS } from "../src/index";
 import type { Conjugation, OutputForm, Slot, WaznInfo } from "../src/index";
-import { LEXICON_INFO, lexiconEntries, lexiconRoots } from "../src/lexicon";
-import type { LexiconEntry, Transitivity } from "../src/lexicon";
+import { attestedWazns, LEXICON_INFO, lexiconRoots } from "../src/lexicon";
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector(s) as T;
 const PERSONS = ["3ms", "3md", "3mp", "3fs", "3fd", "3fp", "2ms", "2d", "2mp", "2fs", "2fp", "1s", "1p"];
@@ -48,11 +47,6 @@ interface BookEntry {
   cells: [string, string][];
 }
 
-const TRANS_AR: Record<Transitivity, string> = {
-  intransitive: "لازم",
-  transitive: "متعدٍّ",
-  both: "لازم ومتعدٍّ",
-};
 const N = (n: number) => n.toLocaleString("en").replace(/,/g, "٬");
 
 const rootEl = $<HTMLInputElement>("#root");
@@ -84,29 +78,28 @@ function fillWazn() {
   }
 }
 
-/** The lexicon's verbs for the typed root; null when the root is malformed (the engine will say so). */
-function attested(root: string): LexiconEntry[] | null {
+/** The lexicon's patterns for the typed root; null when the root is malformed (the engine will say so). */
+function attested(root: string): string[] | null {
   try {
-    return lexiconEntries(root);
+    return attestedWazns(root);
   } catch {
     return null;
   }
 }
 
 /**
- * Label every pattern with its transitivity when the root × pattern is a listed verb; under the restriction,
- * grey out the others and (unless `keep`) move a selection that is no longer offered to the first listed one.
+ * Mark the patterns the lexicon lists for the root; under the restriction, grey out the others and (unless
+ * `keep`) move a selection that is no longer offered to the first listed one.
  */
 function refreshWazn(keep = false) {
-  const entries = attested(rootEl.value.trim()) ?? [];
-  const byWazn = new Map(entries.map((e) => [e.wazn, e]));
-  const restrict = attestedEl.checked && entries.length > 0;
+  const wazns = attested(rootEl.value.trim()) ?? [];
+  const restrict = attestedEl.checked && wazns.length > 0;
   for (const { o, w } of waznOptions) {
-    const e = byWazn.get(w.wazn);
-    o.textContent = `${w.wazn}  (${w.formCode})` + (e ? ` · ${TRANS_AR[e.transitivity]}` : "");
-    o.disabled = restrict && !e;
+    const listed = wazns.includes(w.wazn);
+    o.textContent = `${w.wazn}  (${w.formCode})` + (listed ? " ✓" : "");
+    o.disabled = restrict && !listed;
   }
-  if (restrict && !keep && !byWazn.has(waznEl.value)) waznEl.value = entries[0].wazn;
+  if (restrict && !keep && !wazns.includes(waznEl.value)) waznEl.value = wazns[0];
 }
 
 function fillRoots() {
@@ -215,7 +208,7 @@ function table(
   return wrap;
 }
 
-function show(c: Conjugation, entry: LexiconEntry | undefined) {
+function show(c: Conjugation, listed: boolean) {
   out.innerHTML = "";
   const h = document.createElement("h2");
   h.textContent = c.lemma.map((f) => f.form).join(" / ") || "—";
@@ -226,7 +219,7 @@ function show(c: Conjugation, entry: LexiconEntry | undefined) {
     ["الجذر", c.rootDisplay],
     ["الوزن", c.wazn ?? c.formCode],
     ["النوع", c.verbType],
-    ["معجم الأفعال", entry ? TRANS_AR[entry.transitivity] : "غير وارد"],
+    ["معجم الأفعال", listed ? "وارد" : "غير وارد"],
     [
       "المبني للمجهول",
       {
@@ -322,10 +315,10 @@ function update(pushHash = true) {
     out.innerHTML = '<p class="muted">اكتب جذرًا.</p>';
     return;
   }
-  const entries = attested(root);
-  const entry = entries?.find((e) => e.wazn === wazn);
-  if (restricted() && entries && !entry) {
-    if (entries.length === 0)
+  const wazns = attested(root);
+  const listed = wazns?.includes(wazn) ?? false;
+  if (restricted() && wazns && !listed) {
+    if (wazns.length === 0)
       notice(
         `الجذر «${root}» غير وارد في معجم الأفعال. جرِّب جذرًا آخر (الحقل يقترح الجذور الواردة)، أو ألغِ القيد لتصريفه على أي وزن.`,
       );
@@ -336,7 +329,7 @@ function update(pushHash = true) {
     return;
   }
   try {
-    show(conjugate(root, wazn, { passive: passEl.checked, reduced: redEl.checked }), entry);
+    show(conjugate(root, wazn, { passive: passEl.checked, reduced: redEl.checked }), listed);
   } catch (e) {
     out.innerHTML = "";
     const p = document.createElement("p");

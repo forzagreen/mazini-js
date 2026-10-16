@@ -23,7 +23,7 @@ verified two ways:
 
 - **Pure JS, zero dependencies, no data files.** ESM + CommonJS, typed. Node 18–24 and every browser.
 - **~90 KB**, nothing downloaded at runtime. The optional [lexicon](#is-it-a-verb-the-attested-verb-lexicon)
-  of attested verbs is a separate 60 KB entry point.
+  of attested verbs is a separate 46 KB entry point.
 
 > Named after **أبو عثمان المازني** (Abū ʿUthmān al-Māzinī, d. 863), whose كتاب التصريف is the first
 > standalone treatise on Arabic morphology.
@@ -32,8 +32,8 @@ verified two ways:
 
 **[forzagreen.github.io/mazini-js](https://forzagreen.github.io/mazini-js/)** — conjugate any verb in
 the browser, and run the 16,593 book assertions yourself. By default the page keeps to the verbs the
-lexicon lists (the pattern menu shows which ones exist for a root, with لازم / متعدٍّ); untick
-«الأفعال الواردة في المعجم فقط» to conjugate any root on any pattern.
+lexicon lists (the pattern menu shows which ones exist for a root); untick «الأفعال الواردة في المعجم فقط»
+to conjugate any root on any pattern.
 
 ## Install
 
@@ -84,20 +84,19 @@ loose("فَعَلَا") === loose("فَعَلا"); // the comparison the book te
 The engine conjugates any root on any pattern, and most of those combinations are not words. The
 `mazini/lexicon` entry point says which are, from the **24,188 verbs over 7,626 roots** of
 [جداول إحصاء الأفعال العربية](https://github.com/m-bakni/arabic-morphology) (Marwan al-Bawwab and Yahya Mir
-Alam, CC BY 4.0), each marked لازم (intransitive), متعدٍّ (transitive) or both:
+Alam, CC BY 4.0):
 
 ```ts
-import { isAttested, lexiconEntries, lexiconRoots, transitivity, LEXICON_INFO } from "mazini/lexicon";
+import { attestedWazns, isAttested, lexiconRoots, LEXICON_INFO } from "mazini/lexicon";
 
 isAttested("كتب", "فعَل يفعُل"); // true
 isAttested("كتب", "افعوعل"); // false
-transitivity("كتب", "استفعل"); // "transitive"
-lexiconEntries("كتب").map((e) => e.wazn); // ["فعَل يفعُل", "فعَل يفعِل", "فعّل", "فاعل", "أفعل", "تفعّل", "تفاعل", "افتعل", "استفعل"]
+attestedWazns("كتب"); // ["فعَل يفعُل", "فعَل يفعِل", "فعّل", "فاعل", "أفعل", "تفعّل", "تفاعل", "افتعل", "استفعل"]
 lexiconRoots().length; // 7626
 LEXICON_INFO; // { sourceUrl, sourceCommit, sourceDate, roots, verbs }
 ```
 
-Roots and patterns are written as for `conjugate`. The data is a 57 KB string decoded on first use (a few
+Roots and patterns are written as for `conjugate`. The data is a 44 KB string decoded on first use (a few
 milliseconds); importing `mazini` alone bundles none of it, and `conjugate` is never restricted by it: no
 list of a living language is complete, so an absence means "not listed", not "not a verb".
 
