@@ -1,7 +1,11 @@
 // The demo page: conjugate what the reader types, show the tables the book prints (and the moods it
-// does not), and run the 15,549 book assertions in the browser on request.
+// does not), and run the 15,549 book assertions in the browser on request. By default the root and
+// pattern are kept to the verbs the lexicon lists (and the pattern menu shows which ones those are); a
+// checkbox lifts the restriction so any root can be conjugated on any pattern.
 import { conjugate, loose, MaziniError, WAZNS } from "../src/index";
-import type { Conjugation, OutputForm, Slot } from "../src/index";
+import type { Conjugation, OutputForm, Slot, WaznInfo } from "../src/index";
+import { LEXICON_INFO, lexiconEntries, lexiconRoots } from "../src/lexicon";
+import type { LexiconEntry, Transitivity } from "../src/lexicon";
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector(s) as T;
 const PERSONS = ["3ms", "3md", "3mp", "3fs", "3fd", "3fp", "2ms", "2d", "2mp", "2fs", "2fp", "1s", "1p"];
@@ -44,12 +48,21 @@ interface BookEntry {
   cells: [string, string][];
 }
 
+const TRANS_AR: Record<Transitivity, string> = {
+  intransitive: "لازم",
+  transitive: "متعدٍّ",
+  both: "لازم ومتعدٍّ",
+};
+const N = (n: number) => n.toLocaleString("en").replace(/,/g, "٬");
+
 const rootEl = $<HTMLInputElement>("#root");
 const waznEl = $<HTMLSelectElement>("#wazn");
 const passEl = $<HTMLInputElement>("#passive");
 const redEl = $<HTMLInputElement>("#reduced");
+const attestedEl = $<HTMLInputElement>("#attested");
 const pickEl = $<HTMLSelectElement>("#book-pick");
 const out = $<HTMLElement>("#out");
+const waznOptions: { o: HTMLOptionElement; w: WaznInfo }[] = [];
 
 function fillWazn() {
   const groups: [string, (typeof WAZNS)[number][]][] = [
@@ -65,9 +78,81 @@ function fillWazn() {
       o.value = w.wazn;
       o.textContent = `${w.wazn}  (${w.formCode})`;
       og.appendChild(o);
+      waznOptions.push({ o, w });
     }
     waznEl.appendChild(og);
   }
+}
+
+/** The lexicon's verbs for the typed root; null when the root is malformed (the engine will say so). */
+function attested(root: string): LexiconEntry[] | null {
+  try {
+    return lexiconEntries(root);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Label every pattern with its transitivity when the root × pattern is a listed verb; under the restriction,
+ * grey out the others and (unless `keep`) move a selection that is no longer offered to the first listed one.
+ */
+function refreshWazn(keep = false) {
+  const entries = attested(rootEl.value.trim()) ?? [];
+  const byWazn = new Map(entries.map((e) => [e.wazn, e]));
+  const restrict = attestedEl.checked && entries.length > 0;
+  for (const { o, w } of waznOptions) {
+    const e = byWazn.get(w.wazn);
+    o.textContent = `${w.wazn}  (${w.formCode})` + (e ? ` · ${TRANS_AR[e.transitivity]}` : "");
+    o.disabled = restrict && !e;
+  }
+  if (restrict && !keep && !byWazn.has(waznEl.value)) waznEl.value = entries[0].wazn;
+}
+
+function fillRoots() {
+  const list = document.createElement("datalist");
+  list.id = "roots";
+  for (const r of lexiconRoots()) {
+    const o = document.createElement("option");
+    o.value = r.replace(/ء/g, "أ"); // the dictionaries' spelling; lookups fold it back
+    list.appendChild(o);
+  }
+  document.body.appendChild(list);
+  rootEl.setAttribute("list", "roots");
+}
+
+function restricted(): boolean {
+  return attestedEl.checked;
+}
+
+function setRestricted(on: boolean) {
+  attestedEl.checked = on;
+  try {
+    localStorage.setItem("mazini-attested", on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** The "not in the lexicon" panel shown under the restriction, with a button that lifts it. */
+function notice(text: string) {
+  out.innerHTML = "";
+  const p = document.createElement("p");
+  p.className = "notice";
+  p.append(text + " ");
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = "ألغِ القيد وصرِّفه";
+  b.addEventListener("click", () => {
+    setRestricted(false);
+    refreshWazn(true);
+    update();
+  });
+  p.appendChild(b);
+  const hint = document.createElement("p");
+  hint.className = "muted";
+  hint.textContent = `معجم الأفعال: ${N(LEXICON_INFO.verbs)} فعلًا على ${N(LEXICON_INFO.roots)} جذرًا، من جداول إحصاء الأفعال العربية؛ لا قائمة تحيط بلغةٍ حيّة، فغياب الفعل منها لا يعني أنه غير موجود.`;
+  out.append(p, hint);
 }
 
 function cleanNote(n: string): string {
@@ -130,7 +215,7 @@ function table(
   return wrap;
 }
 
-function show(c: Conjugation) {
+function show(c: Conjugation, entry: LexiconEntry | undefined) {
   out.innerHTML = "";
   const h = document.createElement("h2");
   h.textContent = c.lemma.map((f) => f.form).join(" / ") || "—";
@@ -141,6 +226,7 @@ function show(c: Conjugation) {
     ["الجذر", c.rootDisplay],
     ["الوزن", c.wazn ?? c.formCode],
     ["النوع", c.verbType],
+    ["معجم الأفعال", entry ? TRANS_AR[entry.transitivity] : "غير وارد"],
     [
       "المبني للمجهول",
       {
@@ -229,14 +315,28 @@ function update(pushHash = true) {
     const p = new URLSearchParams({ root, wazn });
     if (passEl.checked) p.set("passive", "1");
     if (redEl.checked) p.set("reduced", "1");
+    if (!restricted()) p.set("all", "1");
     history.replaceState(null, "", "#" + p.toString());
   }
   if (!root) {
     out.innerHTML = '<p class="muted">اكتب جذرًا.</p>';
     return;
   }
+  const entries = attested(root);
+  const entry = entries?.find((e) => e.wazn === wazn);
+  if (restricted() && entries && !entry) {
+    if (entries.length === 0)
+      notice(
+        `الجذر «${root}» غير وارد في معجم الأفعال. جرِّب جذرًا آخر (الحقل يقترح الجذور الواردة)، أو ألغِ القيد لتصريفه على أي وزن.`,
+      );
+    else
+      notice(
+        `الفعل من الجذر «${root}» على وزن «${wazn}» غير وارد في معجم الأفعال؛ الأوزان الواردة لهذا الجذر هي المتاحة في القائمة.`,
+      );
+    return;
+  }
   try {
-    show(conjugate(root, wazn, { passive: passEl.checked, reduced: redEl.checked }));
+    show(conjugate(root, wazn, { passive: passEl.checked, reduced: redEl.checked }), entry);
   } catch (e) {
     out.innerHTML = "";
     const p = document.createElement("p");
@@ -252,6 +352,15 @@ function readHash() {
   if (p.get("wazn") && WAZNS.some((w) => w.wazn === p.get("wazn"))) waznEl.value = p.get("wazn")!;
   passEl.checked = p.get("passive") === "1";
   redEl.checked = p.get("reduced") === "1";
+  // A link that says all=1 was shared from the unrestricted page; otherwise the reader's own last choice.
+  let pref = "1";
+  try {
+    pref = localStorage.getItem("mazini-attested") ?? "1";
+  } catch {
+    /* ignore */
+  }
+  attestedEl.checked = p.get("all") !== "1" && pref !== "0";
+  refreshWazn(true);
 }
 
 let book: BookEntry[] | null = null;
@@ -275,6 +384,7 @@ async function fillPicker() {
     waznEl.value = e.wazn;
     passEl.checked = e.passive;
     redEl.checked = e.reduced;
+    refreshWazn(true);
     update();
   });
 }
@@ -336,11 +446,21 @@ function theme(set?: string) {
 fillWazn();
 readHash();
 update(false);
-for (const el of [rootEl, waznEl, passEl, redEl]) el.addEventListener("input", () => update());
+rootEl.addEventListener("input", () => {
+  refreshWazn();
+  update();
+});
+for (const el of [waznEl, passEl, redEl]) el.addEventListener("input", () => update());
+attestedEl.addEventListener("change", () => {
+  setRestricted(attestedEl.checked);
+  refreshWazn();
+  update();
+});
 window.addEventListener("hashchange", () => {
   readHash();
   update(false);
 });
+setTimeout(fillRoots, 0);
 $("#theme").addEventListener("click", () => theme());
 $("#run-test").addEventListener("click", () => {
   void runSelfTest();
