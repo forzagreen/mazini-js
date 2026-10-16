@@ -47,6 +47,9 @@ sup.fn { font-family: var(--ui); font-size: 0.6em; color: var(--accent); }
 details.meta { margin-top: 12px; color: var(--muted); font-size: 0.9rem; }
 details.meta code { font-family: ui-monospace, monospace; font-size: 0.85rem; }
 .error { color: var(--warn); font-size: 1.1rem; }
+.notice { font-size: 1.1rem; margin: 0 0 8px; }
+.notice button { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 2px 12px; cursor: pointer; font: inherit; margin-inline-start: 4px; }
+.controls select option:disabled { color: var(--muted); }
 .selftest { margin-top: 24px; }
 .selftest h2 { font-size: 1.2rem; margin: 0 0 4px; }
 .muted { color: var(--muted); }
