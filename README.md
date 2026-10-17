@@ -32,7 +32,7 @@ verified two ways:
 
 **[forzagreen.github.io/mazini-js](https://forzagreen.github.io/mazini-js/)** — conjugate any verb in
 the browser, and run the 16,593 book assertions yourself. By default the page keeps to the verbs the
-lexicon lists (the pattern menu shows which ones exist for a root); untick «الأفعال الواردة في المعجم فقط»
+lexicon lists (the pattern menu shows which ones exist for a root); untick «الأفعال الواردة في المعجم الحاسوبي فقط»
 to conjugate any root on any pattern.
 
 ## Install
