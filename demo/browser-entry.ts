@@ -1,5 +1,5 @@
 // The demo page: conjugate what the reader types, show the tables the book prints (and the moods it
-// does not), and run the 15,549 book assertions in the browser on request. By default the root and
+// does not), and run the 16,593 book assertions in the browser on request. By default the root and
 // pattern are kept to the verbs the lexicon lists (and the pattern menu shows which ones those are); a
 // checkbox lifts the restriction so any root can be conjugated on any pattern.
 import { conjugate, loose, MaziniError, WAZNS } from "../src/index";
