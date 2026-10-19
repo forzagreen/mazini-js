@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>المازني — مُصرِّف الأفعال العربية</title>
-    <meta name="description" content="مُصرِّف الأفعال العربية في المتصفح: كل صيغ الفعل من جذره ووزنه، معلومًا ومجهولًا، مع اسمي الفاعل والمفعول والمصدر. نسخة جافاسكربت من وحدة التصريف في ويكاموس." />
+    <meta name="description" content="مُصرِّف الأفعال العربية في المتصفح: كل صيغ الفعل من جذره ووزنه، مبنيًّا للمعلوم وللمجهول، مع اسمي الفاعل والمفعول والمصدر. مُختبَر على 16٬593 صيغةً من معجم تصريف الأفعال العربية." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Scheherazade+New:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet" />
@@ -33,7 +33,7 @@
     <header class="top">
       <div class="wrap">
         <h1>المازني <span class="latin">mazini</span></h1>
-        <p class="sub">مُصرِّف الأفعال العربية: كلُّ صيغ الفعل من جذره ووزنه، يعمل بالكامل في متصفحك. نسخةٌ من وحدة التصريف في ويكاموس العربي، مطابقةٌ لها حرفًا بحرف ومُختبَرةٌ على 16٬593 صيغةً من <i>معجم تصريف الأفعال العربية</i>.</p>
+        <p class="sub">مُصرِّف الأفعال العربية: كلُّ صيغ الفعل من جذره ووزنه، يعمل بالكامل في متصفحك، ومُختبَرٌ على 16٬593 صيغةً من <a href="https://archive.org/details/hm4501" target="_blank" rel="noopener"><i>معجم تصريف الأفعال العربية</i></a>.</p>
         <nav class="links">
           <a href="https://github.com/forzagreen/mazini-js">GitHub</a>
           <a href="https://www.npmjs.com/package/mazini">npm</a>
@@ -46,15 +46,24 @@
 
     <main class="wrap">
       <section class="controls">
-        <label>الجذر <input id="root" type="text" value="كتب" autocomplete="off" spellcheck="false" /></label>
+        <label>الجذر
+          <span class="combo">
+            <input id="root" type="text" value="كتب" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="root-list" />
+            <ul id="root-list" class="menu" role="listbox" hidden></ul>
+          </span>
+        </label>
         <label>الوزن <select id="wazn"></select></label>
         <label class="check" title="يقتصر الجذر والوزن على الأفعال الواردة في جداول إحصاء الأفعال العربية (24٬188 فعلًا)؛ أزِل العلامة لتصريف أي جذر على أي وزن"><input id="attested" type="checkbox" checked /> الأفعال الواردة في <a href="https://www.wikidata.org/wiki/Q128034252" target="_blank" rel="noopener">المعجم الحاسوبي</a> فقط</label>
-        <label class="check"><input id="passive" type="checkbox" /> مبني للمجهول كاملًا</label>
-        <label class="check"><input id="reduced" type="checkbox" /> مدغم</label>
         <label>من الكتاب <select id="book-pick"><option value="">— اختر فعلًا من نماذج الكتاب —</option></select></label>
       </section>
 
       <section id="out" class="out"></section>
+      <template id="opts-tpl">
+        <span class="opts">
+          <label class="check"><input id="passive" type="checkbox" /> مبني للمجهول كاملًا</label>
+          <label class="check"><input id="reduced" type="checkbox" /> مدغم</label>
+        </span>
+      </template>
 
       <section class="selftest">
         <h2>اختبار على الكتاب</h2>
@@ -65,7 +74,7 @@
     </main>
 
     <footer class="wrap foot">
-      <p>المصدر: <a href="https://ar.wiktionary.org/wiki/وحدة:ar-verb">وحدة:ar-verb</a> في ويكاموس العربي، من <a href="https://en.wiktionary.org/wiki/Module:ar-verb">Module:ar-verb</a> في الإنجليزي. الصيغُ المطبوعة من أنطوان الدحداح، <i>معجم تصريف الأفعال العربية</i>، مكتبة لبنان، ط6، 2007، عبر مجموعة <a href="https://github.com/forzagreen/ar-conjugation">ar-conjugation</a>.</p>
+      <p>الصيغُ المطبوعة من أنطوان الدحداح، <a href="https://archive.org/details/hm4501" target="_blank" rel="noopener"><i>معجم تصريف الأفعال العربية</i></a>، مكتبة لبنان، ط6، 2007، عبر مجموعة <a href="https://github.com/forzagreen/ar-conjugation">ar-conjugation</a>.</p>
       <p>قائمة الأفعال الواردة (الجذور وأوزانها ولزومها وتعديها) من <i>جداول إحصاء الأفعال العربية</i>، إعداد مروان البواب ويحيى مير علم، عبر مجموعة <a href="https://github.com/m-bakni/arabic-morphology">arabic-morphology</a>.</p>
       <p>الرخصة: <a href="https://creativecommons.org/licenses/by/4.0/deed.ar">CC BY 4.0</a> · © 2026 وائل تلات</p>
     </footer>

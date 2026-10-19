@@ -34,8 +34,8 @@ const ACTIVE_COLS: [string, string][] = [
   ["imp_", "الأمر"],
 ];
 const PASSIVE_COLS: [string, string][] = [
-  ["past_pass_", "الماضي المجهول"],
-  ["ind_pass_", "المضارع المجهول"],
+  ["past_pass_", "الماضي"],
+  ["ind_pass_", "المضارع المرفوع"],
   ["sub_pass_", "المنصوب"],
   ["juss_pass_", "المجزوم"],
 ];
@@ -53,9 +53,12 @@ interface BookEntry {
 const N = (n: number) => n.toLocaleString("en").replace(/,/g, "٬");
 
 const rootEl = $<HTMLInputElement>("#root");
+const rootList = $<HTMLUListElement>("#root-list");
 const waznEl = $<HTMLSelectElement>("#wazn");
-const passEl = $<HTMLInputElement>("#passive");
-const redEl = $<HTMLInputElement>("#reduced");
+// The passive and assimilation options sit in the output, after the verb's facts; show() re-attaches them.
+const optsEl = $<HTMLTemplateElement>("#opts-tpl").content.firstElementChild!.cloneNode(true) as HTMLElement;
+const passEl = optsEl.querySelector<HTMLInputElement>("#passive")!;
+const redEl = optsEl.querySelector<HTMLInputElement>("#reduced")!;
 const attestedEl = $<HTMLInputElement>("#attested");
 const pickEl = $<HTMLSelectElement>("#book-pick");
 const out = $<HTMLElement>("#out");
@@ -105,16 +108,57 @@ function refreshWazn(keep = false) {
   if (restrict && !keep && !wazns.includes(waznEl.value)) waznEl.value = wazns[0];
 }
 
+// The root suggestions: a styled list rather than a <datalist>, whose native popup cannot be made to match
+// the pattern menu. Roots starting with what was typed come first, then those containing it.
+let roots: string[] = [];
+let active = -1;
+
 function fillRoots() {
-  const list = document.createElement("datalist");
-  list.id = "roots";
-  for (const r of lexiconRoots()) {
-    const o = document.createElement("option");
-    o.value = r.replace(/ء/g, "أ"); // the dictionaries' spelling; lookups fold it back
-    list.appendChild(o);
+  roots = lexiconRoots().map((r) => r.replace(/ء/g, "أ")); // the dictionaries' spelling; lookups fold it back
+}
+
+function closeRoots() {
+  rootList.hidden = true;
+  rootEl.setAttribute("aria-expanded", "false");
+  active = -1;
+}
+
+function openRoots() {
+  const q = rootEl.value.trim();
+  const hits = q
+    ? [...roots.filter((r) => r.startsWith(q)), ...roots.filter((r) => !r.startsWith(q) && r.includes(q))]
+    : roots;
+  rootList.innerHTML = "";
+  active = -1;
+  for (const r of hits.slice(0, 200)) {
+    const li = document.createElement("li");
+    li.setAttribute("role", "option");
+    li.textContent = r;
+    li.addEventListener("mousedown", (e) => {
+      e.preventDefault(); // keep the focus in the input
+      pickRoot(r);
+    });
+    rootList.appendChild(li);
   }
-  document.body.appendChild(list);
-  rootEl.setAttribute("list", "roots");
+  const show = hits.length > 0 && !(hits.length === 1 && hits[0] === q);
+  rootList.hidden = !show;
+  rootEl.setAttribute("aria-expanded", String(show));
+}
+
+function moveActive(by: number) {
+  const items = rootList.children;
+  if (rootList.hidden || !items.length) return openRoots();
+  items[active]?.classList.remove("active");
+  active = (active + by + items.length) % items.length;
+  items[active].classList.add("active");
+  items[active].scrollIntoView({ block: "nearest" });
+}
+
+function pickRoot(r: string) {
+  rootEl.value = r;
+  closeRoots();
+  refreshWazn();
+  update();
 }
 
 function restricted(): boolean {
@@ -316,9 +360,9 @@ function show(
       {
         pass: "كامل",
         ipass: "غير شخصي (للغائب فقط)",
-        nopass: "لا مجهول له",
-        onlypass: "مجهول فقط",
-        "onlypass-impers": "مجهول غير شخصي",
+        nopass: "لا يُبنى للمجهول",
+        onlypass: "ملازم (لا يُبنى للمعلوم)",
+        "onlypass-impers": "ملازم، غير شخصي",
       }[c.passive] + (c.passiveDefaulted ? " (افتراضًا)" : ""),
     ],
   ];
@@ -331,6 +375,7 @@ function show(
     s.appendChild(b);
     facts.appendChild(s);
   }
+  facts.appendChild(optsEl);
   out.appendChild(facts);
 
   const notes = new Map<string, number>();
@@ -356,12 +401,12 @@ function show(
 
   if (c.hasActive) {
     const h3 = document.createElement("h3");
-    h3.textContent = "المعلوم";
+    h3.textContent = "المبني للمعلوم";
     out.append(h3, table(c, ACTIVE_COLS, false, notes));
   }
   if (c.hasPassive && Object.keys(c.slots).some((s) => s.includes("_pass_"))) {
     const h3 = document.createElement("h3");
-    h3.textContent = "المجهول";
+    h3.textContent = "المبني للمجهول";
     out.append(h3, table(c, PASSIVE_COLS, true, notes));
   }
   if (notes.size) {
@@ -432,6 +477,7 @@ function update(pushHash = true) {
     p.className = "error";
     p.textContent = e instanceof MaziniError ? `خطأ (${e.code}): ${e.message}` : String(e);
     out.appendChild(p);
+    if (passEl.checked || redEl.checked) out.appendChild(optsEl); // so an option that caused it can be undone
   }
 }
 
@@ -536,8 +582,20 @@ fillWazn();
 readHash();
 update(false);
 rootEl.addEventListener("input", () => {
+  openRoots();
   refreshWazn();
   update();
+});
+rootEl.addEventListener("focus", openRoots);
+rootEl.addEventListener("blur", closeRoots);
+rootEl.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    moveActive(e.key === "ArrowDown" ? 1 : -1);
+  } else if (e.key === "Enter" && !rootList.hidden && active >= 0) {
+    e.preventDefault();
+    pickRoot(rootList.children[active].textContent!);
+  } else if (e.key === "Escape") closeRoots();
 });
 for (const el of [waznEl, passEl, redEl]) el.addEventListener("input", () => update());
 attestedEl.addEventListener("change", () => {
