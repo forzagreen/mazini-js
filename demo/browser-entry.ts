@@ -455,6 +455,11 @@ function update(pushHash = true) {
     out.innerHTML = '<p class="muted">اكتب جذرًا.</p>';
     return;
   }
+  if ((root.replace(/آ/g, "ءا").match(/[ء-ي]/g) ?? []).length < 3) {
+    // Still being typed: a hint, not the engine's bad_root error (آ counts as ءا, as normalizeRoot reads it).
+    out.innerHTML = '<p class="muted">أكمِل الجذر: ثلاثة أحرف أو أربعة (مثل كتب أو دحرج).</p>';
+    return;
+  }
   const wazns = attested(root);
   const listed = wazns?.includes(wazn) ?? false;
   if (restricted() && wazns && !listed) {
