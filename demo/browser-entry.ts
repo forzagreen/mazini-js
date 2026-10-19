@@ -13,10 +13,10 @@ const PERSONS = ["1s", "1p", "2ms", "2fs", "2d", "2mp", "2fp", "3ms", "3fs", "3m
 const GROUP_START = new Set(["2ms", "3ms"]);
 const PERSON_AR: Record<string, string> = {
   "3ms": "هو",
-  "3md": "هما (مذ)",
+  "3md": "هما (مذكر)",
   "3mp": "هم",
   "3fs": "هي",
-  "3fd": "هما (مؤ)",
+  "3fd": "هما (مؤنث)",
   "3fp": "هنّ",
   "2ms": "أنتَ",
   "2d": "أنتما",
