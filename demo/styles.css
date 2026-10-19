@@ -42,10 +42,12 @@ table.conj th.person { font-size: 1rem; color: var(--muted); text-align: start; 
 table.conj.pass td { background: var(--pass-bg); color: var(--pass); }
 table.conj td .alt { display: block; font-size: 0.95em; color: var(--muted); }
 table.conj td.empty { color: var(--line); }
+table.conj tbody tr.group > * { border-top: 2px solid var(--muted); }
 sup.fn { font-family: var(--ui); font-size: 0.6em; color: var(--accent); }
 .notes { font-size: 0.9rem; color: var(--muted); margin-top: 8px; }
 details.meta { margin-top: 12px; color: var(--muted); font-size: 0.9rem; }
-details.meta code { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+details.meta h4 { margin: 10px 0 4px; font-size: 0.9rem; font-weight: 600; }
+details.meta pre { direction: ltr; text-align: left; margin: 0; padding: 8px 10px; overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font-family: ui-monospace, monospace; font-size: 0.85rem; line-height: 1.5; }
 .error { color: var(--warn); font-size: 1.1rem; }
 .notice { font-size: 1.1rem; margin: 0 0 8px; }
 .notice button { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 2px 12px; cursor: pointer; font: inherit; margin-inline-start: 4px; }

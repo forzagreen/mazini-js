@@ -5,15 +5,18 @@
 import { conjugate, loose, MaziniError, WAZNS } from "../src/index";
 import type { Conjugation, OutputForm, Slot, WaznInfo } from "../src/index";
 import { attestedWazns, LEXICON_INFO, lexiconRoots } from "../src/lexicon";
+import { BOOK_SCAN, BOOK_SCAN_URL } from "./book-scan";
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector(s) as T;
-const PERSONS = ["3ms", "3md", "3mp", "3fs", "3fd", "3fp", "2ms", "2d", "2mp", "2fs", "2fp", "1s", "1p"];
+// المتكلم ثم المخاطب ثم الغائب, singular before dual before plural, masculine before feminine.
+const PERSONS = ["1s", "1p", "2ms", "2fs", "2d", "2mp", "2fp", "3ms", "3fs", "3md", "3fd", "3mp", "3fp"];
+const GROUP_START = new Set(["2ms", "3ms"]);
 const PERSON_AR: Record<string, string> = {
   "3ms": "هو",
-  "3md": "هما",
+  "3md": "هما (مذكر)",
   "3mp": "هم",
   "3fs": "هي",
-  "3fd": "هما (مؤ)",
+  "3fd": "هما (مؤنث)",
   "3fp": "هنّ",
   "2ms": "أنتَ",
   "2d": "أنتما",
@@ -148,6 +151,87 @@ function notice(text: string) {
   out.append(p, hint);
 }
 
+/**
+ * Where the book prints this verb, or failing that its closest model: the first paradigm on the same pattern
+ * and of the same class (صحيح سالم, أجوف واوي…), else the pattern's first sound paradigm, else its first.
+ */
+function bookPage(c: Conjugation): { leaf: number; verb: string; exact: boolean } | null {
+  const root = c.radicals.join("");
+  const same = BOOK_SCAN.filter((r) => r[1] === c.wazn);
+  const exact = same.find((r) => r[0] === root);
+  if (exact) return { leaf: exact[3], verb: exact[4], exact: true };
+  const first = (rows: typeof same) =>
+    rows.length ? rows.reduce((a, b) => (b[3] < a[3] ? b : a)) : undefined;
+  const model =
+    first(same.filter((r) => r[2] === (c.classification ?? ""))) ??
+    first(same.filter((r) => r[2] === "صحيح سالم")) ??
+    first(same);
+  return model ? { leaf: model[3], verb: model[4], exact: false } : null;
+}
+
+function bookLink(page: { leaf: number }, text: string): HTMLAnchorElement {
+  const printed = page.leaf <= 210 ? page.leaf - 1 : page.leaf + 1; // see book-scan.ts
+  const a = document.createElement("a");
+  a.href = `${BOOK_SCAN_URL}/page/n${page.leaf}/mode/1up`;
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.title = `معجم تصريف الأفعال العربية للدحداح، ص ${printed} (archive.org)`;
+  a.textContent = text;
+  return a;
+}
+
+/** «موجود» / «غير موجود», linked to the book's page for the verb or its closest model. */
+function lexiconFact(c: Conjugation, listed: boolean): Node {
+  const span = document.createElement("span");
+  const page = bookPage(c);
+  const word = listed ? "موجود" : "غير موجود";
+  if (page && listed) span.appendChild(bookLink(page, word));
+  else span.append(word);
+  if (page && !page.exact) {
+    span.append(" (على نموذج ");
+    span.appendChild(listed ? document.createTextNode(page.verb) : bookLink(page, page.verb));
+    span.append(")");
+  }
+  return span;
+}
+
+function codeBlock(title: string, text: string): DocumentFragment {
+  const f = document.createDocumentFragment();
+  const h = document.createElement("h4");
+  h.textContent = title;
+  const pre = document.createElement("pre");
+  pre.dir = "ltr";
+  pre.textContent = text;
+  f.append(h, pre);
+  return f;
+}
+
+/** How to get this same conjugation from the npm and PyPI packages. */
+function usage(c: Conjugation, root: string, wazn: string, opts: { passive: boolean; reduced: boolean }) {
+  const q = (s: string) => JSON.stringify(s);
+  const slot = (["past_3ms", "past_pass_3ms", "ind_3ms"] as Slot[]).find((s) => c.slots[s]?.length);
+  const ex = slot ? c.slots[slot]![0].form : "";
+  const jsOpts = [opts.passive && "passive: true", opts.reduced && "reduced: true"].filter(Boolean);
+  const pyOpts = [opts.passive && "passive=True", opts.reduced && "reduced=True"].filter(Boolean);
+  const js = [
+    "// npm install mazini",
+    'import { conjugate } from "mazini";',
+    "",
+    `const v = conjugate(${[q(root), q(wazn), ...(jsOpts.length ? [`{ ${jsOpts.join(", ")} }`] : [])].join(", ")});`,
+    ...(slot ? [`v.slots.${slot}[0].form; // ${q(ex)}`] : []),
+    `v.verbType; // ${q(c.verbType)}`,
+  ].join("\n");
+  const py = [
+    "# pip install mazini",
+    "from mazini import conjugate",
+    "",
+    `v = conjugate(${[q(root), q(wazn), ...pyOpts].join(", ")})`,
+    ...(slot ? [`v.slots[${q(slot)}][0].form  # ${q(ex)}`] : []),
+    `v.verb_type  # ${q(c.verbType)}`,
+  ].join("\n");
+  return [codeBlock("جافاسكربت", js), codeBlock("بايثون", py)];
+}
+
 function cleanNote(n: string): string {
   return n.replace(/^\[|\]$/g, "").replace(/\{\{m\|ar\|([^}]*)\}\}/g, "$1");
 }
@@ -195,6 +279,7 @@ function table(
   const tb = t.createTBody();
   for (const p of PERSONS) {
     const tr = tb.insertRow();
+    if (GROUP_START.has(p)) tr.className = "group";
     const th = document.createElement("th");
     th.className = "person";
     th.textContent = PERSON_AR[p];
@@ -208,18 +293,24 @@ function table(
   return wrap;
 }
 
-function show(c: Conjugation, listed: boolean) {
+function show(
+  c: Conjugation,
+  listed: boolean,
+  root: string,
+  wazn: string,
+  opts: { passive: boolean; reduced: boolean },
+) {
   out.innerHTML = "";
   const h = document.createElement("h2");
   h.textContent = c.lemma.map((f) => f.form).join(" / ") || "—";
   out.appendChild(h);
   const facts = document.createElement("div");
   facts.className = "facts";
-  const items: [string, string][] = [
+  const items: [string, string | Node][] = [
     ["الجذر", c.rootDisplay],
     ["الوزن", c.wazn ?? c.formCode],
     ["النوع", c.verbType],
-    ["معجم الأفعال", listed ? "وارد" : "غير وارد"],
+    ["معجم الأفعال", lexiconFact(c, listed)],
     [
       "المبني للمجهول",
       {
@@ -236,7 +327,7 @@ function show(c: Conjugation, listed: boolean) {
     const s = document.createElement("span");
     s.textContent = k ? k + ": " : "";
     const b = document.createElement("b");
-    b.textContent = v;
+    b.append(v);
     s.appendChild(b);
     facts.appendChild(s);
   }
@@ -282,22 +373,26 @@ function show(c: Conjugation, listed: boolean) {
   const meta = document.createElement("details");
   meta.className = "meta";
   meta.innerHTML = "<summary>تفاصيل تقنية</summary>";
-  const pre = document.createElement("code");
-  pre.textContent = JSON.stringify({
-    formCode: c.formCode,
-    radicals: c.radicals,
-    weakness: c.weakness,
-    passive: c.passive,
-    passiveUncertain: c.passiveUncertain,
-    reduced: c.reduced,
-    irregular: c.irregular,
-    formViiiAssim: c.formViiiAssim,
-    orth: c.orth,
-    uncertainSlots: c.uncertainSlots,
-    classification: c.classification,
-    slots: Object.keys(c.slots).length,
-  });
-  meta.appendChild(pre);
+  meta.append(...usage(c, root, wazn, opts));
+  const json = JSON.stringify(
+    {
+      formCode: c.formCode,
+      radicals: c.radicals,
+      weakness: c.weakness,
+      passive: c.passive,
+      passiveUncertain: c.passiveUncertain,
+      reduced: c.reduced,
+      irregular: c.irregular,
+      formViiiAssim: c.formViiiAssim,
+      orth: c.orth,
+      uncertainSlots: c.uncertainSlots,
+      classification: c.classification,
+      slots: Object.keys(c.slots).length,
+    },
+    null,
+    2,
+  ).replace(/\[\s+([^[\]{}]*?)\s+\]/g, (_, items: string) => `[${items.split(/,\s+/).join(", ")}]`); // one-line arrays
+  meta.append(codeBlock("خصائص الفعل", json));
   out.appendChild(meta);
 }
 
@@ -320,16 +415,17 @@ function update(pushHash = true) {
   if (restricted() && wazns && !listed) {
     if (wazns.length === 0)
       notice(
-        `الجذر «${root}» غير وارد في معجم الأفعال. جرِّب جذرًا آخر (الحقل يقترح الجذور الواردة)، أو ألغِ القيد لتصريفه على أي وزن.`,
+        `الجذر «${root}» غير موجود في معجم الأفعال. جرِّب جذرًا آخر (الحقل يقترح الجذور الواردة)، أو ألغِ القيد لتصريفه على أي وزن.`,
       );
     else
       notice(
-        `الفعل من الجذر «${root}» على وزن «${wazn}» غير وارد في معجم الأفعال؛ الأوزان الواردة لهذا الجذر هي المتاحة في القائمة.`,
+        `الفعل من الجذر «${root}» على وزن «${wazn}» غير موجود في معجم الأفعال؛ الأوزان الواردة لهذا الجذر هي المتاحة في القائمة.`,
       );
     return;
   }
   try {
-    show(conjugate(root, wazn, { passive: passEl.checked, reduced: redEl.checked }), listed);
+    const opts = { passive: passEl.checked, reduced: redEl.checked };
+    show(conjugate(root, wazn, opts), listed, root, wazn, opts);
   } catch (e) {
     out.innerHTML = "";
     const p = document.createElement("p");
