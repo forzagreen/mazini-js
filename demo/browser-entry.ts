@@ -366,8 +366,14 @@ function show(
       }[c.passive] + (c.passiveDefaulted ? " (افتراضًا)" : ""),
     ],
   ];
-  if (c.irregular) items.push(["", "فعل شاذّ"]);
+  if (c.irregular) items.splice(-1, 0, ["", "فعل شاذّ"]);
   for (const [k, v] of items) {
+    if (k === "المبني للمجهول") {
+      // The passive fact and its options go on a line of their own.
+      const br = document.createElement("span");
+      br.className = "break";
+      facts.appendChild(br);
+    }
     const s = document.createElement("span");
     s.textContent = k ? k + ": " : "";
     const b = document.createElement("b");
