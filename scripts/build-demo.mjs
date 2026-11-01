@@ -28,6 +28,7 @@ await build({
 
 copyFileSync(resolve(root, "demo/index.html"), resolve(site, "index.html"));
 copyFileSync(resolve(root, "demo/styles.css"), resolve(site, "styles.css"));
+copyFileSync(resolve(root, "demo/ecosystem-switcher.js"), resolve(site, "ecosystem-switcher.js"));
 writeFileSync(resolve(site, ".nojekyll"), "");
 
 // book.json: [{slug, root, wazn, label, passive, reduced, cells: [[slot, form], ...]}]

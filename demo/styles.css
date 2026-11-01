@@ -20,7 +20,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--u
 .links { display: flex; flex-wrap: wrap; gap: 8px 14px; padding-bottom: 14px; align-items: center; }
 .links a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
 .links button, .selftest button { background: var(--chip); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 2px 12px; cursor: pointer; font: inherit; }
-.links button { margin-inline-start: auto; }
+.links ecosystem-switcher { margin-inline-start: auto; }
 .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: end; padding: 18px 0 10px; }
 .controls label { display: flex; flex-direction: column; gap: 2px; font-size: 0.9rem; color: var(--muted); }
 .controls label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--ink); }
