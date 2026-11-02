@@ -2,9 +2,9 @@
 // does not), and run the 16,593 book assertions in the browser on request. By default the root and
 // pattern are kept to the verbs the lexicon lists (and the pattern menu shows which ones those are); a
 // checkbox lifts the restriction so any root can be conjugated on any pattern.
-import { conjugate, loose, MaziniError, WAZNS } from "../src/index";
-import type { Conjugation, OutputForm, Slot, WaznInfo } from "../src/index";
-import { attestedWazns, LEXICON_INFO, lexiconRoots } from "../src/lexicon";
+import { conjugate, loose, MaziniError, reducible, WAZNS } from "../src/index";
+import type { Conjugation, ConjugateOptions, OutputForm, Slot, WaznInfo } from "../src/index";
+import { attestedWazns, LEXICON_INFO, lexiconPassive, lexiconRoots, transitivity } from "../src/lexicon";
 import { BOOK_SCAN, BOOK_SCAN_URL } from "./book-scan";
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector(s) as T;
@@ -49,6 +49,10 @@ interface BookEntry {
   reduced: boolean;
   cells: [string, string][];
 }
+
+// The options passed to conjugate: the passive is the reader's checkbox, else the lexicon's (from the verb's
+// transitivity), else left to the engine's guess from the pattern.
+type Opts = { passive: NonNullable<ConjugateOptions["passive"]>; reduced: boolean };
 
 const N = (n: number) => n.toLocaleString("en").replace(/,/g, "٬");
 
@@ -253,17 +257,27 @@ function codeBlock(title: string, text: string): DocumentFragment {
 }
 
 /** How to get this same conjugation from the npm and PyPI packages. */
-function usage(c: Conjugation, root: string, wazn: string, opts: { passive: boolean; reduced: boolean }) {
+function usage(c: Conjugation, root: string, wazn: string, opts: Opts) {
   const q = (s: string) => JSON.stringify(s);
   const slot = (["past_3ms", "past_pass_3ms", "ind_3ms"] as Slot[]).find((s) => c.slots[s]?.length);
   const ex = slot ? c.slots[slot]![0].form : "";
-  const jsOpts = [opts.passive && "passive: true", opts.reduced && "reduced: true"].filter(Boolean);
-  const pyOpts = [opts.passive && "passive=True", opts.reduced && "reduced=True"].filter(Boolean);
+  // A string passive came from the lexicon (the checkbox gives true): show where it comes from.
+  const fromLexicon = typeof opts.passive === "string";
+  const args = `${q(root)}, ${q(wazn)}`;
+  const jsOpts = [
+    opts.passive === true && "passive: true",
+    fromLexicon && `passive: lexiconPassive(${args})`,
+    opts.reduced && "reduced: true",
+  ].filter(Boolean);
+  const pyOpts = [opts.passive === true && "passive=True", opts.reduced && "reduced=True"].filter(Boolean);
   const js = [
     "// npm install mazini",
     'import { conjugate } from "mazini";',
+    ...(fromLexicon
+      ? ['import { lexiconPassive } from "mazini/lexicon"; // ' + q(opts.passive as string)]
+      : []),
     "",
-    `const v = conjugate(${[q(root), q(wazn), ...(jsOpts.length ? [`{ ${jsOpts.join(", ")} }`] : [])].join(", ")});`,
+    `const v = conjugate(${[args, ...(jsOpts.length ? [`{ ${jsOpts.join(", ")} }`] : [])].join(", ")});`,
     ...(slot ? [`v.slots.${slot}[0].form; // ${q(ex)}`] : []),
     `v.verbType; // ${q(c.verbType)}`,
   ].join("\n");
@@ -271,7 +285,10 @@ function usage(c: Conjugation, root: string, wazn: string, opts: { passive: bool
     "# pip install mazini",
     "from mazini import conjugate",
     "",
-    `v = conjugate(${[q(root), q(wazn), ...pyOpts].join(", ")})`,
+    ...(fromLexicon
+      ? ["# The passive from the lexicon (lexiconPassive) is not in the Python package yet."]
+      : []),
+    `v = conjugate(${[args, ...pyOpts].join(", ")})`,
     ...(slot ? [`v.slots[${q(slot)}][0].form  # ${q(ex)}`] : []),
     `v.verb_type  # ${q(c.verbType)}`,
   ].join("\n");
@@ -340,10 +357,11 @@ function table(
 }
 
 // Each option is offered only when it changes this verb (or is already on, so it can be undone), and
-// its label shows what it does with the verb's own forms.
-function setOpts(c: Conjugation, root: string, wazn: string, opts: { passive: boolean; reduced: boolean }) {
+// its label shows what it does with the verb's own forms. A listed verb's passive comes from the lexicon,
+// so the passive option is only for verbs it does not list; the assimilated shape only where Arabic has it.
+function setOpts(c: Conjugation, root: string, wazn: string, opts: Opts, listed: boolean) {
   const lemma = (x: Conjugation) => x.lemma.map((f) => f.form).join(" / ");
-  const other = (o: { passive: boolean; reduced: boolean }) => {
+  const other = (o: Opts) => {
     try {
       return conjugate(root, wazn, o);
     } catch {
@@ -352,12 +370,22 @@ function setOpts(c: Conjugation, root: string, wazn: string, opts: { passive: bo
   };
   const same = (a: Conjugation, b: Conjugation) => JSON.stringify(a.slots) === JSON.stringify(b.slots);
 
-  const p = other({ ...opts, passive: !opts.passive });
-  passOpt.hidden = !opts.passive && (!p || same(c, p));
+  if (passEl.checked) passOpt.hidden = false;
+  else if (listed) passOpt.hidden = true;
+  else {
+    const p = other({ ...opts, passive: true });
+    passOpt.hidden = !p || same(c, p);
+  }
   passOpt.title =
     "يُقدِّر البرنامجُ من الوزن هل يُبنى الفعل للمجهول؛ فعِّل هذا لعرض المبني للمجهول كاملًا مع كل الضمائر";
 
-  const r = other({ ...opts, reduced: !opts.reduced });
+  let can = false;
+  try {
+    can = reducible(root, wazn);
+  } catch {
+    /* ignore */
+  }
+  const r = opts.reduced || can ? other({ ...opts, reduced: !opts.reduced }) : null;
   redOpt.hidden = !opts.reduced && (!r || same(c, r));
   const [plain, reduced] = opts.reduced ? [r, c] : [c, r];
   redOpt.querySelector("span")!.textContent =
@@ -365,24 +393,21 @@ function setOpts(c: Conjugation, root: string, wazn: string, opts: { passive: bo
   optsEl.hidden = passOpt.hidden && redOpt.hidden;
 }
 
-function show(
-  c: Conjugation,
-  listed: boolean,
-  root: string,
-  wazn: string,
-  opts: { passive: boolean; reduced: boolean },
-) {
+function show(c: Conjugation, listed: boolean, root: string, wazn: string, opts: Opts) {
   out.innerHTML = "";
   const h = document.createElement("h2");
   h.textContent = c.lemma.map((f) => f.form).join(" / ") || "—";
   out.appendChild(h);
   const facts = document.createElement("div");
   facts.className = "facts";
+  const t = listed ? transitivity(root, wazn) : null;
+  const trans = t && { intransitive: "لازم", transitive: "متعدٍّ", both: "لازم ومتعدٍّ" }[t];
   const items: [string, string | Node][] = [
     ["الجذر", c.rootDisplay],
     ["الوزن", c.wazn ?? c.formCode],
     ["النوع", c.verbType],
     ["معجم الأفعال", lexiconFact(c, listed)],
+    ...(trans ? [["اللزوم والتعدي", trans] as [string, string]] : []),
     [
       "المبني للمجهول",
       {
@@ -396,8 +421,8 @@ function show(
   ];
   if (c.irregular) items.splice(-1, 0, ["", "فعل شاذّ"]);
   for (const [k, v] of items) {
-    if (k === "المبني للمجهول") {
-      // The passive fact and its options go on a line of their own.
+    if (k === (trans ? "اللزوم والتعدي" : "المبني للمجهول")) {
+      // Transitivity, the passive and its options go on a line of their own.
       const br = document.createElement("span");
       br.className = "break";
       facts.appendChild(br);
@@ -409,7 +434,7 @@ function show(
     s.appendChild(b);
     facts.appendChild(s);
   }
-  setOpts(c, root, wazn, opts);
+  setOpts(c, root, wazn, opts, listed);
   facts.appendChild(optsEl);
   out.appendChild(facts);
 
@@ -509,7 +534,10 @@ function update(pushHash = true) {
     return;
   }
   try {
-    const opts = { passive: passEl.checked, reduced: redEl.checked };
+    const opts: Opts = {
+      passive: passEl.checked || (listed && lexiconPassive(root, wazn)) || false,
+      reduced: redEl.checked,
+    };
     show(conjugate(root, wazn, opts), listed, root, wazn, opts);
   } catch (e) {
     out.innerHTML = "";

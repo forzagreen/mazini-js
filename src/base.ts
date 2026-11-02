@@ -54,14 +54,14 @@ export function newBase(
   lemma: string,
   verbForm: VerbForm,
   conjVowels: VowelSpec[],
-  opts: { passive?: boolean; reduced?: boolean },
+  opts: { passive?: boolean | "pass" | "ipass" | "nopass"; reduced?: boolean },
 ): Base {
   return {
     lemma,
     verbForm,
     conjVowels,
     groupedConjVowels: [],
-    passive: opts.passive ? "pass" : undefined,
+    passive: opts.passive === true ? "pass" : opts.passive || undefined,
     passiveUncertain: false,
     passiveDefaulted: false,
     reduced: !!opts.reduced,

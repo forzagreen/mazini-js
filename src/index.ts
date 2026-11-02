@@ -49,8 +49,12 @@ export {
 };
 
 export interface ConjugateOptions {
-  /** |مبني للمجهول=: the verb has a full personal passive. */
-  passive?: boolean;
+  /**
+   * The passive type, instead of the guess from the pattern: true or "pass" for a full personal passive
+   * (|مبني للمجهول=), "ipass" for an impersonal one (third-person masculine singular only), "nopass" for
+   * none. `lexiconPassive` (mazini/lexicon) gives it for a listed verb from its transitivity.
+   */
+  passive?: boolean | "pass" | "ipass" | "nopass";
   /** |مدغم=: the assimilated shape of the affix (اِسَّمَّعَ for تَسَمَّعَ, اِمَّدَحَ, اِهْبَيَّخَ). */
   reduced?: boolean;
   /** Form I only: the past and non-past stem vowels, when `wazn` is the bare "I". */
@@ -145,6 +149,11 @@ function output(f: Form): OutputForm {
  * ("فعَل يفعُل", "استفعل") or a form code ("I/a~u", "X", "XIV").
  */
 export function conjugate(root: string, wazn: string, opts: ConjugateOptions = {}): Conjugation {
+  if (typeof opts.passive === "string" && !["pass", "ipass", "nopass"].includes(opts.passive))
+    throw new MaziniError(
+      "bad_option",
+      'passive must be a boolean, "pass", "ipass" or "nopass": ' + opts.passive,
+    );
   const radicals = normalizeRoot(root);
   const { verbForm, vowels, formCode, waznName } = resolve(wazn, opts);
   const base = buildBase(radicals, verbForm, vowels, { passive: opts.passive, reduced: opts.reduced });
@@ -194,6 +203,35 @@ export function conjugate(root: string, wazn: string, opts: ConjugateOptions = {
     verbType,
     classification,
   };
+}
+
+// The letters the تـ of تفعّل and تفاعل assimilates into (اِسَّمَّعَ, اِدَّارَأَ, اِطَّيَّرَ).
+const TA_ASSIMILATES = "تثدذزسشصضطظ";
+
+/**
+ * True if Arabic has the assimilated (مدغم) shape that `reduced: true` asks for: تفعّل and تفاعل when ف is
+ * one of ت ث د ذ ز س ش ص ض ط ظ (اِسَّمَّعَ, اِثَّاقَلَ), انفعل when ف is م (اِمَّحَقَ), اِتَّخَذَ, اِتَّزَرَ and
+ * اِتَّحَدَ (not اِتَّكَلَ from أكل, a different verb, from وكل), اِسْطَاعَ, and افعنلل when ل1 is و or ي
+ * (اِهْبَيَّخَ). `conjugate` does not check this (it follows Module:ar-verb, which applies the shape to any
+ * root): call it first to avoid forms such as اِكَّتَّبَ. Arguments as for `conjugate`.
+ */
+export function reducible(root: string, wazn: string, opts: ConjugateOptions = {}): boolean {
+  const r = normalizeRoot(root);
+  switch (resolve(wazn, opts).verbForm) {
+    case "V":
+    case "VI":
+      return TA_ASSIMILATES.includes(r[0]);
+    case "VII":
+      return r[0] === "م";
+    case "VIII":
+      return ["ءخذ", "ءزر", "ءحد"].includes(r.join(""));
+    case "X":
+      return r.join("") === "طوع";
+    case "IIIq":
+      return r[2] === "و" || r[2] === "ي";
+    default:
+      return false;
+  }
 }
 
 /** The «فعل ثلاثي مُجرَّد صحيح سالم» line, as Module:ar-verb's get_verb_type gives it. */

@@ -1,6 +1,14 @@
 // The engine-only half of وحدة:ar-verb/مختبر (wiki/batch_0.lua upstream), ported case for case.
 import { describe, expect, it } from "vitest";
-import { classifyTriliteralVerb, conjugate, MaziniError, normalizeRoot, WAZNS, SLOTS } from "../src/index";
+import {
+  classifyTriliteralVerb,
+  conjugate,
+  MaziniError,
+  normalizeRoot,
+  reducible,
+  WAZNS,
+  SLOTS,
+} from "../src/index";
 
 function slot(c: ReturnType<typeof conjugate>, name: string): string | undefined {
   const forms = (c.slots as Record<string, { form: string }[]>)[name];
@@ -246,6 +254,41 @@ describe("persons, moods, passive, irregulars", () => {
     expect([slot(saal, "imp_2ms"), slot(saal, "juss_3ms")]).toEqual(["اِسْأَلْ/سَلْ", "يَسْأَلْ/يَسَلْ"]);
     const hayy = conjugate("حيي", "فعِل يفعَل");
     expect([slot(hayy, "past_3ms"), slot(hayy, "ind_3ms")]).toEqual(["حَيَّ/حَيِيَ", "يَحْيَا"]);
+  });
+  it("a passive type, or a bad one", () => {
+    const hasuna = conjugate("حسن", "فعُل يفعُل", { passive: "nopass" });
+    expect([hasuna.passive, hasuna.hasPassive]).toEqual(["nopass", false]);
+    expect(conjugate("كتب", "فعَل يفعُل", { passive: "pass" }).slots).toEqual(
+      conjugate("كتب", "فعَل يفعُل", { passive: true }).slots,
+    );
+    let err: unknown;
+    try {
+      conjugate("كتب", "فعَل يفعُل", { passive: "full" as "pass" });
+    } catch (e) {
+      err = e;
+    }
+    expect((err as MaziniError).code).toBe("bad_option");
+  });
+  it("reducible: where Arabic has the مدغم shape", () => {
+    for (const [root, wazn, ok] of [
+      ["سمع", "تفعّل", true],
+      ["ثقل", "تفاعل", true],
+      ["درأ", "تفاعل", true],
+      ["كتب", "تفعّل", false], // *اِكَّتَّبَ
+      ["علم", "تفاعل", false], // *اِعَّالَمَ
+      ["محق", "انفعل", true],
+      ["كسر", "انفعل", false],
+      ["أخذ", "افتعل", true],
+      ["أزر", "VIII", true],
+      ["أكل", "افتعل", false], // اِتَّكَلَ is from وكل
+      ["كتب", "افتعل", false],
+      ["طوع", "استفعل", true],
+      ["قوم", "استفعل", false],
+      ["هبيخ", "افعنلل", true],
+      ["دحرج", "افعنلل", false],
+      ["كتب", "فعَل يفعُل", false],
+    ] as const)
+      expect(reducible(root, wazn), `${root} ${wazn}`).toBe(ok);
   });
   it("the reduced (مدغم) shapes", () => {
     const ittakhadha = conjugate("أخذ", "افتعل", { reduced: true });

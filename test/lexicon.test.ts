@@ -1,7 +1,14 @@
 // The attested-verb lexicon: decoding, lookups, and that every listed verb conjugates.
 import { describe, expect, it } from "vitest";
 import { conjugate, MaziniError, normalizeRoot, WAZNS } from "../src/index";
-import { attestedWazns, isAttested, LEXICON_INFO, lexiconRoots } from "../src/lexicon";
+import {
+  attestedWazns,
+  isAttested,
+  LEXICON_INFO,
+  lexiconPassive,
+  lexiconRoots,
+  transitivity,
+} from "../src/lexicon";
 
 const ALPHABET = "ءبتثجحخدذرزسشصضطظعغفقكلمنهوي";
 const QUAD = ["فعلل", "تفعلل", "افعنلل", "افعللّ"];
@@ -100,13 +107,53 @@ describe("lexicon", () => {
     expect(() => attestedWazns("قال")).toThrow(MaziniError);
   });
 
-  it("every attested verb conjugates", () => {
+  it("every attested verb conjugates, with the passive its transitivity gives", () => {
     const verbs = lexiconRoots().flatMap((r) => attestedWazns(r).map((w) => [r, w]));
     for (let i = 0; i < verbs.length; i += 9) {
       const [root, wazn] = verbs[i];
-      const c = conjugate(root, wazn);
+      const passive = lexiconPassive(root, wazn)!;
+      const c = conjugate(root, wazn, { passive });
       expect(c.lemma.length, `${root} ${wazn}`).toBeGreaterThan(0);
       expect(c.wazn).toBe(wazn);
+      expect(c.passive).toBe(passive);
     }
+  });
+
+  it("transitivity follows the tables' ل / م / ك marks", () => {
+    const count = { intransitive: 0, transitive: 0, both: 0 };
+    for (const r of lexiconRoots()) for (const w of attestedWazns(r)) count[transitivity(r, w)!]++;
+    expect(count).toEqual({ intransitive: 10713, transitive: 5883, both: 7592 });
+    for (const [root, wazn, t] of [
+      ["أبأ", "فعَل يفعَل", "transitive"], // the first row
+      ["أبب", "فعَل يفعُل", "both"],
+      ["جلس", "فعَل يفعِل", "intransitive"],
+      ["جلس", "أفعل", "transitive"],
+      ["خرج", "افعالّ", "intransitive"],
+      ["فهم", "فعِل يفعَل", "both"],
+      ["علم", "تفعّل", "transitive"],
+      ["قشعر", "افعللّ", "intransitive"],
+      ["ك ت ب", "X", "transitive"],
+      ["كتب", "افعوعل", null],
+    ] as const)
+      expect(transitivity(root, wazn), `${root} ${wazn}`).toBe(t);
+  });
+
+  it("the passive comes from transitivity", () => {
+    for (const [root, wazn, p] of [
+      ["ضرب", "فعَل يفعِل", "pass"], // ك: ضُرِبْتُ
+      ["علم", "تفعّل", "pass"], // م: تُعُلِّمَ
+      ["جلس", "فعَل يفعِل", "ipass"], // ل: جُلِسَ عَلَيْهِ, never *جُلِسْتُ
+      ["نوم", "فعِل يفعَل", "ipass"],
+      ["حسن", "فعُل يفعُل", "nopass"], // ل, and فعُل never takes a passive
+      ["خرج", "افعالّ", "nopass"],
+      ["كتب", "افعوعل", null],
+    ] as const)
+      expect(lexiconPassive(root, wazn), `${root} ${wazn}`).toBe(p);
+    const jalasa = conjugate("جلس", "فعَل يفعِل", { passive: "ipass" });
+    expect(jalasa.slots.past_pass_3ms![0].form).toBe("جُلِسَ");
+    expect(jalasa.slots.past_pass_1s).toBeUndefined();
+    expect([jalasa.passive, jalasa.passiveDefaulted]).toEqual(["ipass", false]);
+    expect(conjugate("جلس", "فعَل يفعِل").slots.past_pass_1s![0].form).toBe("جُلِسْتُ"); // the engine's guess
+    expect(conjugate("فهم", "فعِل يفعَل", { passive: "pass" }).slots.past_pass_1s![0].form).toBe("فُهِمْتُ");
   });
 });

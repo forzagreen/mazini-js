@@ -23,7 +23,7 @@ verified two ways:
 
 - **Pure JS, zero dependencies, no data files.** ESM + CommonJS, typed. Node 18–24 and every browser.
 - **~90 KB**, nothing downloaded at runtime. The optional [lexicon](#is-it-a-verb-the-attested-verb-lexicon)
-  of attested verbs is a separate 46 KB entry point.
+  of attested verbs is a separate 55 KB entry point.
 
 > Named after **أبو عثمان المازني** (Abū ʿUthmān al-Māzinī, d. 863), whose كتاب التصريف is the first
 > standalone treatise on Arabic morphology.
@@ -61,7 +61,16 @@ conjugate("كتب", "I", { vowels: { past: "a", nonpast: "u" } }); // same as "�
 // Two switches, the same ones {{تصريف}} takes on the wiki:
 conjugate("أخذ", "افتعل", { reduced: true }).slots.past_3ms[0].form; // "اِتَّخَذَ" (assimilated affix)
 conjugate("علم", "فعِل يفعَل", { passive: true }); // a full personal passive for a verb the engine would default to impersonal
+conjugate("جلس", "فعَل يفعِل", { passive: "ipass" }); // impersonal (جُلِسَ عَلَيْهِ only); also "pass", "nopass"
+
+// The assimilated shape exists only for some roots; the engine, like the wiki, applies it to any:
+reducible("سمع", "تفعّل"); // true: اِسَّمَّعَ
+reducible("كتب", "تفعّل"); // false: no *اِكَّتَّبَ
 ```
+
+Without `passive`, the engine guesses the passive from the pattern, and the guess is often wrong for form I
+(it gives جلس a full passive, *جُلِسْتُ). For a listed verb, `lexiconPassive` (below) gives it from the
+verb's transitivity instead.
 
 The result's `slots` is a map from slot name (`past_3ms`, `ind_pass_2fp`, `juss_1p`, `imp_2fp`, `ap`,
 `pp`, `vn`, …) to the list of forms for that slot, each `{ form, footnotes }`; a slot the verb lacks is
@@ -70,7 +79,7 @@ absent. Alongside it: `lemma`, `verbForm`, `wazn`, `radicals`, `weakness`, `pass
 form-I مصدر or participle the root alone cannot predict), `verbType` and `classification`.
 
 Roots may be written `كتب`, `ك ت ب` or `ك_ت_ب`; hamza seats fold to `ء` and `ى` to `ي`. Bad input throws a
-`MaziniError` whose `code` is stable (`bad_root`, `unknown_wazn`, `reduced_not_applicable`, …).
+`MaziniError` whose `code` is stable (`bad_root`, `unknown_wazn`, `reduced_not_applicable`, `bad_option`, …).
 
 ```ts
 import { WAZNS, SLOTS, PERSON_NUMBERS, classifyTriliteralVerb, loose } from "mazini";
@@ -82,21 +91,26 @@ loose("فَعَلَا") === loose("فَعَلا"); // the comparison the book te
 ## Is it a verb? The attested-verb lexicon
 
 The engine conjugates any root on any pattern, and most of those combinations are not words. The
-`mazini/lexicon` entry point says which are, from the **24,188 verbs over 7,626 roots** of
+`mazini/lexicon` entry point says which are, and whether each is transitive, from the **24,188 verbs over
+7,626 roots** of
 [جداول إحصاء الأفعال العربية](https://github.com/m-bakni/arabic-morphology) (Marwan al-Bawwab and Yahya Mir
 Alam, CC BY 4.0):
 
 ```ts
-import { attestedWazns, isAttested, lexiconRoots, LEXICON_INFO } from "mazini/lexicon";
+import { attestedWazns, isAttested, lexiconPassive, lexiconRoots, transitivity, LEXICON_INFO } from "mazini/lexicon";
 
 isAttested("كتب", "فعَل يفعُل"); // true
 isAttested("كتب", "افعوعل"); // false
 attestedWazns("كتب"); // ["فعَل يفعُل", "فعَل يفعِل", "فعّل", "فاعل", "أفعل", "تفعّل", "تفاعل", "افتعل", "استفعل"]
+transitivity("جلس", "فعَل يفعِل"); // "intransitive" (ل); also "transitive" (م), "both" (ك), null if not listed
+lexiconPassive("جلس", "فعَل يفعِل"); // "ipass": an intransitive verb's passive is impersonal
+lexiconPassive("فهم", "فعِل يفعَل"); // "pass": a transitive one's is full, فُهِمْتُ
+conjugate("جلس", "فعَل يفعِل", { passive: lexiconPassive("جلس", "فعَل يفعِل") });
 lexiconRoots().length; // 7626
 LEXICON_INFO; // { sourceUrl, sourceCommit, sourceDate, roots, verbs }
 ```
 
-Roots and patterns are written as for `conjugate`. The data is a 44 KB string decoded on first use (a few
+Roots and patterns are written as for `conjugate`. The data is a 52 KB string decoded on first use (a few
 milliseconds); importing `mazini` alone bundles none of it, and `conjugate` is never restricted by it: no
 list of a living language is complete, so an absence means "not listed", not "not a verb".
 

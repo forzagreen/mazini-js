@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { FIXTURES } from "./util";
-import { conjugate, loose } from "../src/index";
+import { conjugate, loose, reducible } from "../src/index";
 
 const COLS: Record<string, string> = {
   past: "past_",
@@ -64,6 +64,7 @@ describe("the book: 495 paradigms from El-Dahdah", () => {
     const failed: string[] = [];
     const perColumn: Record<string, number> = {};
     for (const e of index) {
+      if (e.reduced) expect(reducible(e.root, e.wazn), e.slug).toBe(true);
       const c = conjugate(e.root, e.wazn, { passive: !!e.passive, reduced: !!e.reduced });
       const rows = readCsv(join(book, e.slug + ".csv"));
       for (const row of rows) {
