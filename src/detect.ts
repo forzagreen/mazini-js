@@ -18,7 +18,7 @@ import {
 import type { VerbForm, Vowel } from "./wazn";
 
 export interface BuildOptions {
-  passive?: boolean;
+  passive?: boolean | "pass" | "ipass" | "nopass";
   reduced?: boolean;
 }
 

@@ -2,6 +2,7 @@ export type MaziniErrorCode =
   | "bad_root"
   | "unknown_wazn"
   | "reduced_not_applicable"
+  | "bad_option"
   | "unsupported_weakness"
   | "invalid_radicals"
   | "internal";
