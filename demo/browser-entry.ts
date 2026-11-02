@@ -59,6 +59,8 @@ const waznEl = $<HTMLSelectElement>("#wazn");
 const optsEl = $<HTMLTemplateElement>("#opts-tpl").content.firstElementChild!.cloneNode(true) as HTMLElement;
 const passEl = optsEl.querySelector<HTMLInputElement>("#passive")!;
 const redEl = optsEl.querySelector<HTMLInputElement>("#reduced")!;
+const passOpt = optsEl.querySelector<HTMLElement>("#passive-opt")!;
+const redOpt = optsEl.querySelector<HTMLElement>("#reduced-opt")!;
 const attestedEl = $<HTMLInputElement>("#attested");
 const pickEl = $<HTMLSelectElement>("#book-pick");
 const out = $<HTMLElement>("#out");
@@ -337,6 +339,32 @@ function table(
   return wrap;
 }
 
+// Each option is offered only when it changes this verb (or is already on, so it can be undone), and
+// its label shows what it does with the verb's own forms.
+function setOpts(c: Conjugation, root: string, wazn: string, opts: { passive: boolean; reduced: boolean }) {
+  const lemma = (x: Conjugation) => x.lemma.map((f) => f.form).join(" / ");
+  const other = (o: { passive: boolean; reduced: boolean }) => {
+    try {
+      return conjugate(root, wazn, o);
+    } catch {
+      return null;
+    }
+  };
+  const same = (a: Conjugation, b: Conjugation) => JSON.stringify(a.slots) === JSON.stringify(b.slots);
+
+  const p = other({ ...opts, passive: !opts.passive });
+  passOpt.hidden = !opts.passive && (!p || same(c, p));
+  passOpt.title =
+    "يُقدِّر البرنامجُ من الوزن هل يُبنى الفعل للمجهول؛ فعِّل هذا لعرض المبني للمجهول كاملًا مع كل الضمائر";
+
+  const r = other({ ...opts, reduced: !opts.reduced });
+  redOpt.hidden = !opts.reduced && (!r || same(c, r));
+  const [plain, reduced] = opts.reduced ? [r, c] : [c, r];
+  redOpt.querySelector("span")!.textContent =
+    plain && reduced ? `الصيغة المُدغَمة: ${lemma(reduced)} بدل ${lemma(plain)}` : "الصيغة المُدغَمة";
+  optsEl.hidden = passOpt.hidden && redOpt.hidden;
+}
+
 function show(
   c: Conjugation,
   listed: boolean,
@@ -363,7 +391,7 @@ function show(
         nopass: "لا يُبنى للمجهول",
         onlypass: "ملازم (لا يُبنى للمعلوم)",
         "onlypass-impers": "ملازم، غير شخصي",
-      }[c.passive] + (c.passiveDefaulted ? " (افتراضًا)" : ""),
+      }[c.passive] + (c.passiveDefaulted ? "، تقديرًا من الوزن" : ""),
     ],
   ];
   if (c.irregular) items.splice(-1, 0, ["", "فعل شاذّ"]);
@@ -381,6 +409,7 @@ function show(
     s.appendChild(b);
     facts.appendChild(s);
   }
+  setOpts(c, root, wazn, opts);
   facts.appendChild(optsEl);
   out.appendChild(facts);
 
@@ -488,7 +517,13 @@ function update(pushHash = true) {
     p.className = "error";
     p.textContent = e instanceof MaziniError ? `خطأ (${e.code}): ${e.message}` : String(e);
     out.appendChild(p);
-    if (passEl.checked || redEl.checked) out.appendChild(optsEl); // so an option that caused it can be undone
+    if (passEl.checked || redEl.checked) {
+      // So an option that caused it can be undone.
+      passOpt.hidden = !passEl.checked;
+      redOpt.hidden = !redEl.checked;
+      optsEl.hidden = false;
+      out.appendChild(optsEl);
+    }
   }
 }
 
