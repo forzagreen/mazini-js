@@ -69,6 +69,8 @@ const anywayEl = optsEl.querySelector<HTMLInputElement>("#passive-anyway")!;
 const passOpt = optsEl.querySelector<HTMLElement>("#passive-opt")!;
 const redOpt = optsEl.querySelector<HTMLElement>("#reduced-opt")!;
 const anywayOpt = optsEl.querySelector<HTMLElement>("#passive-anyway-opt")!;
+// The verb (root|wazn) the passive option was last shown for: it stays up for that verb once unticked.
+let passShownFor = "";
 const attestedEl = $<HTMLInputElement>("#attested");
 const pickEl = $<HTMLSelectElement>("#book-pick");
 const out = $<HTMLElement>("#out");
@@ -369,10 +371,10 @@ function table(
   return wrap;
 }
 
-// Each option is offered only when it changes this verb (or is already on, so it can be undone), and
-// its label shows what it does with the verb's own forms. A listed verb's passive comes from the lexicon,
-// so the passive option is only for verbs it does not list; a listed intransitive verb is offered its
-// impersonal passive instead; the assimilated shape only where Arabic has it.
+// Each option is offered only when it changes this verb (or is on, or was shown for this verb, so it can be
+// undone and redone), and its label shows what it does with the verb's own forms. A listed verb's passive
+// comes from the lexicon, so the passive option is only for verbs it does not list; a listed intransitive
+// verb is offered its impersonal passive instead; the assimilated shape only where Arabic has it.
 function setOpts(c: Conjugation, root: string, wazn: string, opts: Opts, { listed, intransitive }: Facts) {
   const lemma = (x: Conjugation) => x.lemma.map((f) => f.form).join(" / ");
   const other = (o: Opts) => {
@@ -384,12 +386,15 @@ function setOpts(c: Conjugation, root: string, wazn: string, opts: Opts, { liste
   };
   const same = (a: Conjugation, b: Conjugation) => JSON.stringify(a.slots) === JSON.stringify(b.slots);
 
-  if (passEl.checked) passOpt.hidden = false;
+  // update() unticks the passive option when it changes nothing, so a ticked one always matters here.
+  const key = `${root}|${wazn}`;
+  if (passEl.checked || passShownFor === key) passOpt.hidden = false;
   else if (listed) passOpt.hidden = true;
   else {
     const p = other({ ...opts, passive: true });
     passOpt.hidden = !p || same(c, p);
   }
+  passShownFor = passOpt.hidden ? "" : key;
   passOpt.title =
     "يُقدِّر البرنامجُ من الوزن هل يُبنى الفعل للمجهول؛ فعِّل هذا لعرض المبني للمجهول كاملًا مع كل الضمائر";
   anywayOpt.hidden = !intransitive;
@@ -447,12 +452,12 @@ function show(c: Conjugation, facts: Facts, root: string, wazn: string, opts: Op
     ["الوزن", c.wazn ?? c.formCode],
     ["التصنيف", c.verbType],
     ["معجم الأفعال", lexiconFact(c, listed)],
-    ...(trans ? [["اللزوم والتعدي", trans] as [string, string]] : []),
-    ["المبني للمجهول", passiveFact],
+    ...(trans ? [["اللزوم والتعدية", trans] as [string, string]] : []),
+    ["البناء للمجهول", passiveFact],
   ];
   if (c.irregular) items.splice(-1, 0, ["", "فعل شاذّ"]);
   for (const [k, v] of items) {
-    if (k === (trans ? "اللزوم والتعدي" : "المبني للمجهول")) {
+    if (k === (trans ? "اللزوم والتعدية" : "البناء للمجهول")) {
       // Transitivity, the passive and its options go on a line of their own.
       const br = document.createElement("span");
       br.className = "break";
@@ -534,17 +539,19 @@ function show(c: Conjugation, facts: Facts, root: string, wazn: string, opts: Op
   out.appendChild(meta);
 }
 
+function writeHash(root: string, wazn: string) {
+  const p = new URLSearchParams({ root, wazn });
+  if (passEl.checked) p.set("passive", "1");
+  if (anywayEl.checked) p.set("showpass", "1");
+  if (redEl.checked) p.set("reduced", "1");
+  if (!restricted()) p.set("all", "1");
+  history.replaceState(null, "", "#" + p.toString());
+}
+
 function update(pushHash = true) {
   const root = rootEl.value.trim();
   const wazn = waznEl.value;
-  if (pushHash) {
-    const p = new URLSearchParams({ root, wazn });
-    if (passEl.checked) p.set("passive", "1");
-    if (anywayEl.checked) p.set("showpass", "1");
-    if (redEl.checked) p.set("reduced", "1");
-    if (!restricted()) p.set("all", "1");
-    history.replaceState(null, "", "#" + p.toString());
-  }
+  if (pushHash) writeHash(root, wazn);
   if (!root) {
     out.innerHTML = '<p class="muted">اكتب جذرًا.</p>';
     return;
@@ -571,13 +578,22 @@ function update(pushHash = true) {
     const intransitive = listed && transitivity(root, wazn) === "intransitive";
     // A listed intransitive verb gets no passive, or only the impersonal one if asked for; the checkbox
     // (unlisted verbs) forces a full one; otherwise the lexicon's, else the engine's guess.
-    const passive: Opts["passive"] = passEl.checked
-      ? true
-      : intransitive
-        ? anywayEl.checked
-          ? "ipass"
-          : "nopass"
-        : (listed && lexiconPassive(root, wazn)) || false;
+    const fallback: Opts["passive"] = intransitive
+      ? anywayEl.checked
+        ? "ipass"
+        : "nopass"
+      : (listed && lexiconPassive(root, wazn)) || false;
+    if (passEl.checked) {
+      // A ticked passive option that gives the same verb (a book pick or a link can tick it) is dropped,
+      // so it is not shown only to vanish when unticked.
+      const forced = conjugate(root, wazn, { passive: true, reduced: redEl.checked });
+      const plain = conjugate(root, wazn, { passive: fallback, reduced: redEl.checked });
+      if (JSON.stringify(forced.slots) === JSON.stringify(plain.slots)) {
+        passEl.checked = false;
+        if (pushHash) writeHash(root, wazn);
+      }
+    }
+    const passive: Opts["passive"] = passEl.checked ? true : fallback;
     const opts: Opts = { passive, reduced: redEl.checked };
     show(conjugate(root, wazn, opts), { listed, intransitive }, root, wazn, opts);
   } catch (e) {
