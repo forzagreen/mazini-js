@@ -51,8 +51,10 @@ interface BookEntry {
 }
 
 // The options passed to conjugate: the passive is the reader's checkbox, else the lexicon's (from the verb's
-// transitivity), else left to the engine's guess from the pattern.
+// transitivity), else left to the engine's guess from the pattern. A listed intransitive verb (فعل لازم) gets
+// no passive at all unless the reader asks to see the impersonal one anyway (جُلِسَ عَلَيْهِ).
 type Opts = { passive: NonNullable<ConjugateOptions["passive"]>; reduced: boolean };
+type Facts = { listed: boolean; intransitive: boolean };
 
 const N = (n: number) => n.toLocaleString("en").replace(/,/g, "٬");
 
@@ -63,8 +65,10 @@ const waznEl = $<HTMLSelectElement>("#wazn");
 const optsEl = $<HTMLTemplateElement>("#opts-tpl").content.firstElementChild!.cloneNode(true) as HTMLElement;
 const passEl = optsEl.querySelector<HTMLInputElement>("#passive")!;
 const redEl = optsEl.querySelector<HTMLInputElement>("#reduced")!;
+const anywayEl = optsEl.querySelector<HTMLInputElement>("#passive-anyway")!;
 const passOpt = optsEl.querySelector<HTMLElement>("#passive-opt")!;
 const redOpt = optsEl.querySelector<HTMLElement>("#reduced-opt")!;
+const anywayOpt = optsEl.querySelector<HTMLElement>("#passive-anyway-opt")!;
 const attestedEl = $<HTMLInputElement>("#attested");
 const pickEl = $<HTMLSelectElement>("#book-pick");
 const out = $<HTMLElement>("#out");
@@ -238,7 +242,7 @@ function lexiconFact(c: Conjugation, listed: boolean): Node {
   if (page && listed) span.appendChild(bookLink(page, word));
   else span.append(word);
   if (page && !page.exact) {
-    span.append(" (على نموذج ");
+    span.append(" (يُصَرَّف مثل ");
     span.appendChild(listed ? document.createTextNode(page.verb) : bookLink(page, page.verb));
     span.append(")");
   }
@@ -257,26 +261,36 @@ function codeBlock(title: string, text: string): DocumentFragment {
 }
 
 /** How to get this same conjugation from the npm and PyPI packages. */
-function usage(c: Conjugation, root: string, wazn: string, opts: Opts) {
+function usage(c: Conjugation, root: string, wazn: string, opts: Opts, facts: Facts) {
   const q = (s: string) => JSON.stringify(s);
   const slot = (["past_3ms", "past_pass_3ms", "ind_3ms"] as Slot[]).find((s) => c.slots[s]?.length);
   const ex = slot ? c.slots[slot]![0].form : "";
-  // A string passive came from the lexicon (the checkbox gives true): show where it comes from.
-  const fromLexicon = typeof opts.passive === "string";
+  // A string passive is the lexicon's (the checkbox gives true), unless the page overrode it for an
+  // intransitive verb: then it is printed literally, with the lexicon's value in a comment.
+  const lex = facts.listed ? lexiconPassive(root, wazn) : null;
+  const str = typeof opts.passive === "string" ? opts.passive : null;
+  const fromLexicon = str !== null && str === lex;
   const args = `${q(root)}, ${q(wazn)}`;
+  const why =
+    str && !fromLexicon ? `the lexicon lists the verb as intransitive (lexiconPassive gives ${q(lex)})` : "";
   const jsOpts = [
     opts.passive === true && "passive: true",
     fromLexicon && `passive: lexiconPassive(${args})`,
+    str && !fromLexicon && `passive: ${q(str)}`,
     opts.reduced && "reduced: true",
   ].filter(Boolean);
-  const pyOpts = [opts.passive === true && "passive=True", opts.reduced && "reduced=True"].filter(Boolean);
+  const pyOpts = [
+    opts.passive === true && "passive=True",
+    fromLexicon && `passive=lexicon_passive(${args})`,
+    str && !fromLexicon && `passive=${q(str)}`,
+    opts.reduced && "reduced=True",
+  ].filter(Boolean);
   const js = [
     "// npm install mazini",
     'import { conjugate } from "mazini";',
-    ...(fromLexicon
-      ? ['import { lexiconPassive } from "mazini/lexicon"; // ' + q(opts.passive as string)]
-      : []),
+    ...(fromLexicon ? ['import { lexiconPassive } from "mazini/lexicon"; // ' + q(str!)] : []),
     "",
+    ...(why ? [`// ${why}`] : []),
     `const v = conjugate(${[args, ...(jsOpts.length ? [`{ ${jsOpts.join(", ")} }`] : [])].join(", ")});`,
     ...(slot ? [`v.slots.${slot}[0].form; // ${q(ex)}`] : []),
     `v.verbType; // ${q(c.verbType)}`,
@@ -284,10 +298,9 @@ function usage(c: Conjugation, root: string, wazn: string, opts: Opts) {
   const py = [
     "# pip install mazini",
     "from mazini import conjugate",
+    ...(fromLexicon ? ["from mazini.lexicon import lexicon_passive  # " + q(str!)] : []),
     "",
-    ...(fromLexicon
-      ? ["# The passive from the lexicon (lexiconPassive) is not in the Python package yet."]
-      : []),
+    ...(why ? [`# ${why.replace("lexiconPassive", "lexicon_passive")}`] : []),
     `v = conjugate(${[args, ...pyOpts].join(", ")})`,
     ...(slot ? [`v.slots[${q(slot)}][0].form  # ${q(ex)}`] : []),
     `v.verb_type  # ${q(c.verbType)}`,
@@ -358,8 +371,9 @@ function table(
 
 // Each option is offered only when it changes this verb (or is already on, so it can be undone), and
 // its label shows what it does with the verb's own forms. A listed verb's passive comes from the lexicon,
-// so the passive option is only for verbs it does not list; the assimilated shape only where Arabic has it.
-function setOpts(c: Conjugation, root: string, wazn: string, opts: Opts, listed: boolean) {
+// so the passive option is only for verbs it does not list; a listed intransitive verb is offered its
+// impersonal passive instead; the assimilated shape only where Arabic has it.
+function setOpts(c: Conjugation, root: string, wazn: string, opts: Opts, { listed, intransitive }: Facts) {
   const lemma = (x: Conjugation) => x.lemma.map((f) => f.form).join(" / ");
   const other = (o: Opts) => {
     try {
@@ -378,6 +392,7 @@ function setOpts(c: Conjugation, root: string, wazn: string, opts: Opts, listed:
   }
   passOpt.title =
     "يُقدِّر البرنامجُ من الوزن هل يُبنى الفعل للمجهول؛ فعِّل هذا لعرض المبني للمجهول كاملًا مع كل الضمائر";
+  anywayOpt.hidden = !intransitive;
 
   let can = false;
   try {
@@ -390,34 +405,50 @@ function setOpts(c: Conjugation, root: string, wazn: string, opts: Opts, listed:
   const [plain, reduced] = opts.reduced ? [r, c] : [c, r];
   redOpt.querySelector("span")!.textContent =
     plain && reduced ? `الصيغة المُدغَمة: ${lemma(reduced)} بدل ${lemma(plain)}` : "الصيغة المُدغَمة";
-  optsEl.hidden = passOpt.hidden && redOpt.hidden;
+  optsEl.hidden = passOpt.hidden && redOpt.hidden && anywayOpt.hidden;
 }
 
-function show(c: Conjugation, listed: boolean, root: string, wazn: string, opts: Opts) {
+/** The impersonal passive of an intransitive verb, shown on request: a warning that it is not the rule. */
+function anywayNote(c: Conjugation): HTMLElement {
+  const p = document.createElement("p");
+  p.className = "warning";
+  const form = c.slots.past_pass_3ms?.[0].form;
+  p.textContent =
+    "تنبيه: هذا فعل لازم، والفعل اللازم لا يُبنى للمجهول في الأصل؛ وإنما يجيء منه المبني للمجهول" +
+    " على صورةٍ غير شخصية للغائب المفرد وحده، بنائبِ فاعلٍ من الجار والمجرور أو الظرف أو المصدر" +
+    (form ? ` (نحو: ${form} عليه)` : "") +
+    ".";
+  return p;
+}
+
+function show(c: Conjugation, facts: Facts, root: string, wazn: string, opts: Opts) {
+  const { listed, intransitive } = facts;
   out.innerHTML = "";
   const h = document.createElement("h2");
   h.textContent = c.lemma.map((f) => f.form).join(" / ") || "—";
   out.appendChild(h);
-  const facts = document.createElement("div");
-  facts.className = "facts";
+  const factsEl = document.createElement("div");
+  factsEl.className = "facts";
   const t = listed ? transitivity(root, wazn) : null;
   const trans = t && { intransitive: "لازم", transitive: "متعدٍّ", both: "لازم ومتعدٍّ" }[t];
-  const items: [string, string | Node][] = [
-    ["الجذر", c.rootDisplay],
-    ["الوزن", c.wazn ?? c.formCode],
-    ["النوع", c.verbType],
-    ["معجم الأفعال", lexiconFact(c, listed)],
-    ...(trans ? [["اللزوم والتعدي", trans] as [string, string]] : []),
-    [
-      "المبني للمجهول",
-      {
+  const passiveFact = intransitive
+    ? c.passive === "nopass"
+      ? "فعل لازم، لا يُبنى للمجهول"
+      : "غير شخصي (للغائب فقط)، على أن الفعل لازم"
+    : {
         pass: "كامل",
         ipass: "غير شخصي (للغائب فقط)",
         nopass: "لا يُبنى للمجهول",
         onlypass: "ملازم (لا يُبنى للمعلوم)",
         "onlypass-impers": "ملازم، غير شخصي",
-      }[c.passive] + (c.passiveDefaulted ? "، تقديرًا من الوزن" : ""),
-    ],
+      }[c.passive] + (c.passiveDefaulted ? "، تقديرًا من الوزن" : "");
+  const items: [string, string | Node][] = [
+    ["الجذر", c.rootDisplay],
+    ["الوزن", c.wazn ?? c.formCode],
+    ["التصنيف", c.verbType],
+    ["معجم الأفعال", lexiconFact(c, listed)],
+    ...(trans ? [["اللزوم والتعدي", trans] as [string, string]] : []),
+    ["المبني للمجهول", passiveFact],
   ];
   if (c.irregular) items.splice(-1, 0, ["", "فعل شاذّ"]);
   for (const [k, v] of items) {
@@ -425,18 +456,18 @@ function show(c: Conjugation, listed: boolean, root: string, wazn: string, opts:
       // Transitivity, the passive and its options go on a line of their own.
       const br = document.createElement("span");
       br.className = "break";
-      facts.appendChild(br);
+      factsEl.appendChild(br);
     }
     const s = document.createElement("span");
     s.textContent = k ? k + ": " : "";
     const b = document.createElement("b");
     b.append(v);
     s.appendChild(b);
-    facts.appendChild(s);
+    factsEl.appendChild(s);
   }
-  setOpts(c, root, wazn, opts, listed);
-  facts.appendChild(optsEl);
-  out.appendChild(facts);
+  setOpts(c, root, wazn, opts, facts);
+  factsEl.appendChild(optsEl);
+  out.appendChild(factsEl);
 
   const notes = new Map<string, number>();
   const derived = document.createElement("div");
@@ -467,7 +498,9 @@ function show(c: Conjugation, listed: boolean, root: string, wazn: string, opts:
   if (c.hasPassive && Object.keys(c.slots).some((s) => s.includes("_pass_"))) {
     const h3 = document.createElement("h3");
     h3.textContent = "المبني للمجهول";
-    out.append(h3, table(c, PASSIVE_COLS, true, notes));
+    out.append(h3);
+    if (intransitive) out.append(anywayNote(c));
+    out.append(table(c, PASSIVE_COLS, true, notes));
   }
   if (notes.size) {
     const n = document.createElement("div");
@@ -478,7 +511,7 @@ function show(c: Conjugation, listed: boolean, root: string, wazn: string, opts:
   const meta = document.createElement("details");
   meta.className = "meta";
   meta.innerHTML = "<summary>تفاصيل تقنية</summary>";
-  meta.append(...usage(c, root, wazn, opts));
+  meta.append(...usage(c, root, wazn, opts, facts));
   const json = JSON.stringify(
     {
       formCode: c.formCode,
@@ -507,6 +540,7 @@ function update(pushHash = true) {
   if (pushHash) {
     const p = new URLSearchParams({ root, wazn });
     if (passEl.checked) p.set("passive", "1");
+    if (anywayEl.checked) p.set("showpass", "1");
     if (redEl.checked) p.set("reduced", "1");
     if (!restricted()) p.set("all", "1");
     history.replaceState(null, "", "#" + p.toString());
@@ -534,21 +568,29 @@ function update(pushHash = true) {
     return;
   }
   try {
-    const opts: Opts = {
-      passive: passEl.checked || (listed && lexiconPassive(root, wazn)) || false,
-      reduced: redEl.checked,
-    };
-    show(conjugate(root, wazn, opts), listed, root, wazn, opts);
+    const intransitive = listed && transitivity(root, wazn) === "intransitive";
+    // A listed intransitive verb gets no passive, or only the impersonal one if asked for; the checkbox
+    // (unlisted verbs) forces a full one; otherwise the lexicon's, else the engine's guess.
+    const passive: Opts["passive"] = passEl.checked
+      ? true
+      : intransitive
+        ? anywayEl.checked
+          ? "ipass"
+          : "nopass"
+        : (listed && lexiconPassive(root, wazn)) || false;
+    const opts: Opts = { passive, reduced: redEl.checked };
+    show(conjugate(root, wazn, opts), { listed, intransitive }, root, wazn, opts);
   } catch (e) {
     out.innerHTML = "";
     const p = document.createElement("p");
     p.className = "error";
     p.textContent = e instanceof MaziniError ? `خطأ (${e.code}): ${e.message}` : String(e);
     out.appendChild(p);
-    if (passEl.checked || redEl.checked) {
+    if (passEl.checked || redEl.checked || anywayEl.checked) {
       // So an option that caused it can be undone.
       passOpt.hidden = !passEl.checked;
       redOpt.hidden = !redEl.checked;
+      anywayOpt.hidden = !anywayEl.checked;
       optsEl.hidden = false;
       out.appendChild(optsEl);
     }
@@ -560,6 +602,7 @@ function readHash() {
   if (p.get("root")) rootEl.value = p.get("root")!;
   if (p.get("wazn") && WAZNS.some((w) => w.wazn === p.get("wazn"))) waznEl.value = p.get("wazn")!;
   passEl.checked = p.get("passive") === "1";
+  anywayEl.checked = p.get("showpass") === "1";
   redEl.checked = p.get("reduced") === "1";
   // A link that says all=1 was shared from the unrestricted page; otherwise the reader's own last choice.
   let pref = "1";
@@ -592,6 +635,7 @@ async function fillPicker() {
     rootEl.value = e.root;
     waznEl.value = e.wazn;
     passEl.checked = e.passive;
+    anywayEl.checked = false;
     redEl.checked = e.reduced;
     refreshWazn(true);
     update();
@@ -671,7 +715,7 @@ rootEl.addEventListener("keydown", (e) => {
     pickRoot(rootList.children[active].textContent!);
   } else if (e.key === "Escape") closeRoots();
 });
-for (const el of [waznEl, passEl, redEl]) el.addEventListener("input", () => update());
+for (const el of [waznEl, passEl, anywayEl, redEl]) el.addEventListener("input", () => update());
 attestedEl.addEventListener("change", () => {
   setRestricted(attestedEl.checked);
   refreshWazn();
