@@ -26,6 +26,8 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--u
 .controls label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--ink); }
 .controls input[type="text"], .controls select { font: inherit; font-family: var(--arabic); font-size: 1.3rem; line-height: 1.4; height: 2.6rem; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); min-width: 9ch; }
 .controls #root, .controls #wazn { width: 15rem; }
+/* A fixed width: a customizable select sizes to its chosen option, which would make the row reflow on pick. */
+.controls #book-pick { width: 14rem; }
 .sub a { color: inherit; }
 /* The root suggestions and, where the browser allows styling it, the pattern menu share one look. */
 .combo { position: relative; display: block; }
@@ -95,7 +97,7 @@ details.meta pre { direction: ltr; text-align: left; margin: 0; padding: 8px 10p
   .controls label { flex: 1 1 100%; }
   .controls label:has(#root) { flex: 0 0 6.5rem; }
   .controls label:has(#wazn) { flex: 1 1 0; min-width: 0; }
-  .controls #root, .controls #wazn, .controls select { width: 100%; min-width: 0; }
+  .controls #root, .controls #wazn, .controls #book-pick, .controls select { width: 100%; min-width: 0; }
   .derived { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .derived > div { padding: 4px 8px; }
   .derived .k { font-size: 0.75rem; }
